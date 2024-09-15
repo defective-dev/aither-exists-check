@@ -26,11 +26,10 @@ RADARR_API_SUFFIX = "/api/v3/movie"
 SONARR_API_SUFFIX = "/api/v3/series"
 NOT_FOUND_FILE_RADARR = "not_found_radarr.txt"
 NOT_FOUND_FILE_SONARR = "not_found_sonarr.txt"
-INITIAL_SLEEP_TIME = 3
+INITIAL_SLEEP_TIME = 15
 MAX_SLEEP_TIME = 60
 
 # LOGIC CONSTANT - DO NOT TWEAK !!!
-# changing this may break resolution mapping for dvd in search_movie
 RESOLUTION_MAP = {
     "4320": 1,
     "2160": 2,
@@ -42,6 +41,11 @@ RESOLUTION_MAP = {
     "480": 8,
     "480p": 9,
 }
+
+
+BANNED_GROUPS = ['4K4U', 'AROMA', 'd3g', 'edge2020', 'EMBER', 'EVO', 'FGT', 'FreetheFish', 'Hi10', 'HiQVE', 'ION10', 'iVy', 'Judas', 'LAMA', 'MeGusta', 'nikt0', 'OEPlus', 'OFT', 'OsC', 'PYC',
+                              'QxR', 'Ralphy', 'RARBG', 'RetroPeeps', 'SAMPA', 'Sicario', 'Silence', 'SkipTT', 'SPDVD', 'STUTTERSHIT', 'SWTYBLZ', 'TAoE', 'TGx', 'Tigole', 'TSP', 'TSPxL', 'VXT', 'Weasley[HONE]',
+                              'Will1869', 'x0r', 'YIFY']
 
 # Setup logging
 logger = logging.getLogger("customLogger")
@@ -183,6 +187,14 @@ def process_movie(session, movie, not_found_file):
     if not "movieFile" in movie:
         logger.info(
             f"Skipped. No file found in radarr for {title}"
+        )
+        return
+
+    # skip check if group is banned.
+    if "releaseGroup" in movie["movieFile"] and \
+            movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, BANNED_GROUPS):
+        logger.info(
+            f"Skipped. Banned group for {title}"
         )
         return
 
