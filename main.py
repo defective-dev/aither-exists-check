@@ -26,8 +26,9 @@ RADARR_API_SUFFIX = "/api/v3/movie"
 SONARR_API_SUFFIX = "/api/v3/series"
 NOT_FOUND_FILE_RADARR = "not_found_radarr.txt"
 NOT_FOUND_FILE_SONARR = "not_found_sonarr.txt"
-INITIAL_SLEEP_TIME = 10
-MAX_SLEEP_TIME = 60
+BANNED_FILE_RADARR = "banned_radarr.txt"
+INITIAL_SLEEP_TIME = 15
+MAX_SLEEP_TIME = 60  # remove this
 
 # LOGIC CONSTANT - DO NOT TWEAK !!!
 RESOLUTION_MAP = {
@@ -147,10 +148,10 @@ def get_all_shows(session):
 def search_movie(session, movie):
     tmdb_id = movie["tmdbId"]
     try:
-        movie_resolution = movie["movieFile"]["quality"]["quality"]["resolution"]
+        movie_resolution = movie.get("movieFile").get("quality").get("quality").get("resolution")
         # if no resolution like with dvd quality. try parse from mediainfo instead
         if not movie_resolution:
-            mediainfo_resolution = movie["movieFile"]["mediaInfo"]["resolution"]
+            mediainfo_resolution = movie.get("movieFile").get("mediaInfo").get("resolution")
             width, height = mediainfo_resolution.split("x")
             movie_resolution = height
 
@@ -167,9 +168,11 @@ def search_movie(session, movie):
         response = session.get(url)
         if response.status_code == 429:
             logger.warning(f"Rate limit exceeded. Sleeping for {INITIAL_SLEEP_TIME} seconds.")
+            time.sleep(INITIAL_SLEEP_TIME)  # Respectful delay
         else:
             response.raise_for_status()  # Raise an exception if the request failed
             torrents = response.json()["data"]
+            # TODO: if count equals 0 try to search using the imdb if present
             return torrents
 
 
@@ -206,7 +209,7 @@ def process_movie(session, movie, not_found_file):
     if "releaseGroup" in movie["movieFile"] and \
             movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, BANNED_GROUPS):
         logger.info(
-            f"Skipped. Banned group for {title}"
+            f"[Skipped: Banned] group for {title}"
         )
         return
 
@@ -239,6 +242,13 @@ def process_movie(session, movie, not_found_file):
         else:
             # check if torrent is in banned group or tagged trumpable.
             # skip check if group is banned.
+            # if "releaseGroup" in torrents and \
+            #         movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, BANNED_GROUPS):
+            #     logger.info(
+            #         f"[LOCAL] Skipped. Banned group for {title}"
+            #     )
+            #     return
+
             logger.info(
                 f"{movie_resolution} already exists on AITHER"
             )
