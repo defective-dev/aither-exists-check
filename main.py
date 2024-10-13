@@ -26,7 +26,6 @@ RADARR_API_SUFFIX = "/api/v3/movie"
 SONARR_API_SUFFIX = "/api/v3/series"
 NOT_FOUND_FILE_RADARR = "not_found_radarr.txt"
 NOT_FOUND_FILE_SONARR = "not_found_sonarr.txt"
-BANNED_FILE_RADARR = "banned_radarr.txt"
 INITIAL_SLEEP_TIME = 15
 MAX_SLEEP_TIME = 60  # remove this
 
@@ -48,14 +47,14 @@ CATEGORY_MAP = {
 }
 
 TYPE_MAP = {
-    "Full Disc": 1,
-    "Remux": 2,
-    "Encode": 3,
+    "FULL DISC": 1,
+    "REMUX": 2,
+    "ENCODE": 3,
     "WEB-DL": 4,
-    "WEBRip": 5,
+    "WEBRIP": 5,
     "HDTV": 6,
-    "Other": 7,
-    "Movie Pack": 10,
+    "OTHER": 7,
+    "MOVIE PACK": 10,
 }
 
 BANNED_GROUPS = ['4K4U', 'AROMA', 'd3g', 'edge2020', 'EMBER', 'EVO', 'FGT', 'FreetheFish', 'Hi10', 'HiQVE', 'ION10', 'iVy', 'Judas', 'LAMA', 'MeGusta', 'nikt0', 'OEPlus', 'OFT', 'OsC', 'PYC',
@@ -143,10 +142,8 @@ def get_all_shows(session):
     shows = response.json()
     return shows
 
-
-# Function to search for a movie in Aither using its TMDB ID + resolution if found
-def search_movie(session, movie):
-    tmdb_id = movie["tmdbId"]
+def get_movie_resolution(movie):
+    # get resolution from radarr if missing try pull from media info
     try:
         movie_resolution = movie.get("movieFile").get("quality").get("quality").get("resolution")
         # if no resolution like with dvd quality. try parse from mediainfo instead
@@ -154,16 +151,23 @@ def search_movie(session, movie):
             mediainfo_resolution = movie.get("movieFile").get("mediaInfo").get("resolution")
             width, height = mediainfo_resolution.split("x")
             movie_resolution = height
-
     except KeyError:
         movie_resolution = None
-    aither_resolution = RESOLUTION_MAP.get(str(movie_resolution))
+    return movie_resolution
 
-    if aither_resolution is not None:
-        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP["movie"]}&tmdbId={tmdb_id}&resolutions[0]={aither_resolution}&api_token={apiKey.aither_key}"
+# Function to search for a movie in Aither using its TMDB ID + resolution if found
+def search_movie(session, movie, movie_resolution, movie_type):
+    tmdb_id = movie["tmdbId"]
+
+    # build the search url
+    if movie_resolution is not None:
+        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP["movie"]}&tmdbId={tmdb_id}&resolutions[0]={movie_resolution}&api_token={apiKey.aither_key}"
     else:
         url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP["movie"]}&tmdbId={tmdb_id}&api_token={apiKey.aither_key}"
-    
+
+    if movie_type:
+        url += f"&types[0]={movie_type}"
+
     while True:
         response = session.get(url)
         if response.status_code == 429:
@@ -172,7 +176,7 @@ def search_movie(session, movie):
         else:
             response.raise_for_status()  # Raise an exception if the request failed
             torrents = response.json()["data"]
-            # TODO: if count equals 0 try to search using the imdb if present
+            # if count equals 0 try to search using the imdb if present
             return torrents
 
 
@@ -201,7 +205,7 @@ def process_movie(session, movie, not_found_file):
     # verify radarr actually has a file entry if not skip check and save api call
     if not "movieFile" in movie:
         logger.info(
-            f"Skipped. No file found in radarr for {title}"
+            f"[Skipped]. No file found in radarr for {title}"
         )
         return
 
@@ -209,12 +213,16 @@ def process_movie(session, movie, not_found_file):
     if "releaseGroup" in movie["movieFile"] and \
             movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, BANNED_GROUPS):
         logger.info(
-            f"[Skipped: Banned] group for {title}"
+            f"[Banned] group for {title}"
         )
         return
 
     try:
-        torrents = search_movie(session, movie)
+        video_type = movie.get("movieFile").get("quality").get("quality").get("modifier")
+        aither_type = TYPE_MAP.get(video_type.upper())
+        movie_resolution = get_movie_resolution(movie)
+        aither_resolution =  RESOLUTION_MAP.get(str(movie_resolution))
+        torrents = search_movie(session, movie, aither_resolution, aither_type)
     except Exception as e:
         if "429" in str(e):
             logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
@@ -222,35 +230,28 @@ def process_movie(session, movie, not_found_file):
             logger.error(f"Error: {str(e)}")
             not_found_file.write(f"{title} - Error: {str(e)}\n")
     else:
-        movie_resolution = movie.get("movieFile", "0").get("quality", "0").get("quality", "0").get("resolution", "0")
         if len(torrents) == 0:
             try:
                 movie_file = movie["movieFile"]["path"]
                 if movie_file:
                     logger.info(
-                        f"{movie_resolution} not found on AITHER"
+                        f"[{movie_resolution} {video_type}] not found on AITHER"
                     )
                     not_found_file.write(f"{movie_file}\n")
                 else:
                     logger.info(
-                        f"{movie_resolution} not found on AITHER (No media file)"
+                        f"[{movie_resolution} {video_type}] not found on AITHER (No media file)"
                     )
             except KeyError:
                 logger.info(
-                    f"{movie_resolution} not found on AITHER (No media file)"
+                    f"[{movie_resolution} {video_type}] not found on AITHER (No media file)"
                 )
         else:
             # check if torrent is in banned group or tagged trumpable.
             # skip check if group is banned.
-            # if "releaseGroup" in torrents and \
-            #         movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, BANNED_GROUPS):
-            #     logger.info(
-            #         f"[LOCAL] Skipped. Banned group for {title}"
-            #     )
-            #     return
 
             logger.info(
-                f"{movie_resolution} already exists on AITHER"
+                f"[{movie_resolution} {video_type}] already exists on AITHER"
             )
 
 
