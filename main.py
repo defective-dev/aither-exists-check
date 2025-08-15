@@ -197,8 +197,18 @@ def get_movie_resolution(movie):
     return movie_resolution
 
 def get_video_type(source, modifier):
-    source = (source or '').lower()
-    modifier = (modifier or '').lower()
+    if not isinstance(source, list):
+        source = (source or '').lower()
+    else:
+        source = source[0].lower()
+    if not isinstance(modifier, list):
+        modifier = (modifier or '').lower()
+    else:
+        try:
+            index_element = next(i for i, v in enumerate(modifier) if v.lower() == "Remux".lower())
+            modifier = modifier[index_element].lower()
+        except ValueError:
+            modifier = modifier[0].lower()
 
     if source == 'bluray':
         if modifier == 'remux':
