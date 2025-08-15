@@ -250,7 +250,6 @@ def get_video_type(source, modifier):
 # Function to process each movie
 def process_movie(session, movie, not_found_file, banned_groups):
     title = movie["title"]
-    logger.info(f"Checking {title}... ")
 
     # verify radarr actually has a file entry if not skip check and save api call
     if not "movieFile" in movie:
@@ -277,9 +276,13 @@ def process_movie(session, movie, not_found_file, banned_groups):
             modifier = release_info.get("other")
         video_type = get_video_type(source, modifier)
         aither_type = TYPE_MAP.get(video_type.upper())
+        aither_type_id = None
+        # if other don't include video type in search filters only resolution
+        if aither_type != "OTHER":
+            aither_type_id = TYPE_MAP.get(aither_type.upper())
         video_resolution = get_movie_resolution(movie)
         aither_resolutions = get_aither_resolutions(str(video_resolution))
-        torrents = search_movie(session, movie, aither_resolutions, aither_type)
+        torrents = search_movie(session, movie, aither_resolutions, aither_type_id)
     except Exception as e:
         if "429" in str(e):
             logger.warning(f"Rate limit exceeded while checking {title}.")
@@ -380,10 +383,10 @@ def process_show(session, show, not_found_file, banned_groups, sleep_timer):
                 if video_type.lower() == "dvd" and source.lower() == "dvd":
                     release_info = guessit(episode.get("episodeFile").get("relativePath"))
                     video_type = release_info.get("other")
-                # WEBDL-1080p
                 # print(f"\nsource: {source}, video_type: {video_type}")
                 aither_type = get_video_type(source, video_type)
                 aither_type_id = None
+                # if other don't include video type in search filters only resolution
                 if aither_type != "OTHER":
                     aither_type_id = TYPE_MAP.get(aither_type.upper())
                 video_resolution = quality_info.get("resolution")
@@ -479,7 +482,9 @@ def main():
                     with open(
                         out_radarr, "w", encoding="utf-8", buffering=1
                     ) as not_found_file:
-                        for movie in movies:
+                        total = len(movies)
+                        for index, movie in enumerate(movies):
+                            logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
                             process_movie(session, movie, not_found_file, banned_groups)
                             time.sleep(args.sleep_timer)  # Respectful delay
                 else:
