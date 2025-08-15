@@ -219,11 +219,13 @@ def get_video_type(source, modifier):
             return 'FULL DISC'
         else:
             return 'ENCODE'
-    elif source == 'dvd' and modifier != 'dvd':  # skip if both dvd, sonarr
+    elif source == 'dvd':
         if modifier == 'remux':
             return 'REMUX'
         elif modifier == 'full':
             return 'FULL DISC'
+        elif modifier == 'Rip':
+            return 'ENCODE'
         else:
             return 'ENCODE'
     elif source in ['webdl', 'web-dl']:
@@ -374,7 +376,11 @@ def process_show(session, show, not_found_file, banned_groups, sleep_timer):
 
                 quality_info = episode.get("episodeFile").get("quality").get("quality")
                 source = quality_info.get("source")
-                video_type = quality_info.get("name") # WEBDL-1080p
+                video_type = quality_info.get("name")
+                if video_type.lower() == "dvd" and source.lower() == "dvd":
+                    release_info = guessit(episode.get("episodeFile").get("relativePath"))
+                    video_type = release_info.get("other")
+                # WEBDL-1080p
                 # print(f"\nsource: {source}, video_type: {video_type}")
                 aither_type = get_video_type(source, video_type)
                 aither_type_id = None
