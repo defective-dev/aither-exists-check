@@ -1,10 +1,10 @@
-import os.path
 import apiKey
 import requests
 import time
 import argparse
 from guessit import guessit
 import logging
+import os
 
 # Just to sameline the logs while logging to file also
 class NoNewlineStreamHandler(logging.StreamHandler):
@@ -141,20 +141,18 @@ def get_all_shows(session):
 
 
 # Function to search for a movie in Aither using its TMDB ID + resolution if found
-def search_movie(session, movie, movie_resolution, movie_type):
+def search_movie(session, movie, video_resolution, video_type):
     tmdb_id = movie["tmdbId"]
 
     # build the search url
-    if movie_resolution is not None:
-        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['movie']}&tmdbId={tmdb_id}&resolutions[0]={movie_resolution}&api_token={apiKey.aither_key}"
-    else:
-        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['movie']}&tmdbId={tmdb_id}&api_token={apiKey.aither_key}"
-
-    if movie_type:
-        url += f"&types[0]={movie_type}"
+    url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['movie']}&tmdbId={tmdb_id}"
+    if video_resolution is not None:
+        url += f"&resolutions[0]={video_resolution}"
+    if video_type:
+        url += f"&types[0]={video_type}"
     
     while True:
-        response = session.get(url)
+        response = session.get(url, headers={"Authorization": f"Bearer {apiKey.aither_key}"})
         if response.status_code == 429:
             logger.warning(f"Rate limit exceeded.")
         else:
@@ -164,22 +162,19 @@ def search_movie(session, movie, movie_resolution, movie_type):
 
 
 # Function to search for a show in Aither using its TVDB ID
-def search_show(session, show):
-    tvdb_id = show["tvdbId"]
-    show_resolution = None
-    # build the search url
-    if show_resolution is not None:
-        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['tv']}&tvdbId={tvdb_id}&api_token={apiKey.aither_key}"
-        # url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['tv']}&tmdbId={tmdb_id}&resolutions[0]={movie_resolution}&api_token={apiKey.aither_key}"
-    else:
-        url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['tv']}&tvdbId={tvdb_id}&api_token={apiKey.aither_key}"
-        # url = f"{AITHER_URL}/api/torrents/filter?categories[0]={CATEGORY_MAP['tv']}&tmdbId={tmdb_id}&api_token={apiKey.aither_key}"
+def search_show(session, tvdb_id, season_number, video_resolution, video_type):
+    url = f"{AITHER_URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={CATEGORY_MAP['tv']}"
+    if season_number:
+        url += f"&seasonNumber={season_number}"
+    if video_resolution:
+        for index, resolution in enumerate(video_resolution):
+            url += f"&resolutions[{index}]={resolution}"
+    if video_type:
+        url += f"&types[0]={video_type}"
 
-    # if show_type:
-    #     url += f"&types[0]={show_type}"
-
+    print(f"url: {url}")
     while True:
-        response = session.get(url)
+        response = session.get(url, headers={"Authorization": f"Bearer {apiKey.aither_key}"})
         if response.status_code == 429:
             logger.warning(f"Rate limit exceeded.")
         else:
@@ -211,7 +206,7 @@ def get_video_type(source, modifier):
             return 'FULL DISC'
         else:
             return 'ENCODE'
-    elif source == 'dvd':
+    elif source == 'dvd' and modifier != 'dvd':  # skip if both dvd, sonarr
         if modifier == 'remux':
             return 'REMUX'
         elif modifier == 'full':
@@ -224,6 +219,15 @@ def get_video_type(source, modifier):
         return 'WEBRIP'
     elif source == 'hdtv':
         return 'HDTV'
+    # sonarr types
+    elif source == "web" and "webdl" in modifier:
+        return 'WEB-DL'
+    elif "remux" in modifier:
+        return 'REMUX'
+    elif "hdtv" in modifier:
+        return 'HDTV'
+    elif "bluray" in modifier and "remux" not in modifier:
+        return 'ENCODE'
     else:
         return 'OTHER'
 
@@ -296,26 +300,98 @@ def process_movie(session, movie, not_found_file, banned_groups):
                      f"[{movie_resolution} {video_type}] already exists on AITHER"
                 )
 
+def get_aither_resolutions(video_resolution):
+    resolutions = []
+
+    if video_resolution not in ["1080", "1080p", "576", "576p", "480", "480p"]:
+        resolutions.append(RESOLUTION_MAP.get(video_resolution))
+    else:
+        if video_resolution == "1080" or  video_resolution == "1080p":
+            resolutions.append(RESOLUTION_MAP.get("1080"))
+            resolutions.append(RESOLUTION_MAP.get("1080p"))
+
+        if video_resolution == "576" or  video_resolution == "576p":
+            resolutions.append(RESOLUTION_MAP.get("576"))
+            resolutions.append(RESOLUTION_MAP.get("576p"))
+
+        if video_resolution == "480" or  video_resolution == "480p":
+            resolutions.append(RESOLUTION_MAP.get("480"))
+            resolutions.append(RESOLUTION_MAP.get("480p"))
+
+    return resolutions
+
+def get_season_episodes(session, show,season_number):
+    sonarr_url = apiKey.sonarr_url + f"/api/v3/episode?seriesId={show["id"]}&seasonNumber={season_number}&includeSeries=false&includeEpisodeFile=true&includeImages=false"
+    response = session.get(sonarr_url, headers={"X-Api-Key": apiKey.sonarr_key})
+    response.raise_for_status()  # Ensure we handle request errors properly
+    shows = response.json()
+    return shows
 
 # Function to process each show
-def process_show(session, show, not_found_file, banned_groups):
+def process_show(session, show, not_found_file, banned_groups, sleep_timer):
     title = show["title"]
     tvdb_id = show["tvdbId"]
-    logger.info(f"Checking {title}... ")
-    try:
-        torrents = search_show(session, show)
-    except Exception as e:
-        if "429" in str(e):
-            logger.warning(f"Rate limit exceeded while checking {title}.")
-        else:
-            logger.error(f"Error: {str(e)}")
-            not_found_file.write(f"{title} - Error: {str(e)}\n")
-    else:
-        if len(torrents) == 0:
-            logger.info("Not found in Aither")
-            not_found_file.write(f"{title} not found in AITHER\n")
-        else:
-            logger.info("Found in AITHER")
+
+    # loop through shows seasons
+    for season in show["seasons"]:
+        season_number = season["seasonNumber"]
+        # print(f"season: {season_number}")
+
+        # skip specials and incomplete seasons for now
+        if season_number > 0 and season['statistics']["percentOfEpisodes"] == 100:
+            logger.info(f"Checking {title} Season {season_number}... ")
+            # pull episodes for the season
+            episodes = get_season_episodes(session, show, season_number)
+            # get resolution and type from first ep. assume season pack and all the same
+            episode = episodes[0]
+
+            # skip check if group is banned.
+            banned_names = [d['name'] for d in banned_groups]
+            if "releaseGroup" in episode["episodeFile"] and \
+                    episode["episodeFile"]["releaseGroup"].casefold() in map(str.casefold, banned_names):
+                logger.info(
+                    f"[Banned: local] group ({episode['episodeFile']['releaseGroup']}) for {title}"
+                )
+                return
+
+            quality_info = episode.get("episodeFile").get("quality").get("quality")
+            source = quality_info.get("source")
+            video_type = quality_info.get("name") # WEBDL-1080p
+            print(f"\nsource: {source}, video_type: {video_type}")
+            aither_type = get_video_type(source, video_type)
+            aither_type_id = None
+            if aither_type != "OTHER":
+                aither_type_id = TYPE_MAP.get(aither_type.upper())
+            video_resolution = quality_info.get("resolution")
+            aither_resolutions = get_aither_resolutions(str(video_resolution))
+
+            try:
+                torrents = search_show(session, tvdb_id, season_number, aither_resolutions, aither_type_id)
+            except Exception as e:
+                if "429" in str(e):
+                    logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
+                else:
+                    logger.error(f"Error: {str(e)}")
+                    not_found_file.write(f"{title} - Error: {str(e)}\n")
+            else:
+                if len(torrents) == 0:
+                    logger.info(
+                        f"[{video_resolution} {aither_type}] not found on AITHER"
+                    )
+                    filepath = os.path.dirname(episode["episodeFile"]["path"])
+                    not_found_file.write(f"{filepath}\n")
+                else:
+                    release_info = guessit(torrents[0].get("attributes").get("name"))
+                    if "release_group" in release_info \
+                            and release_info["release_group"].casefold() in map(str.casefold, banned_names):
+                        logger.info(
+                            f"[Trumpable: Banned] group for {title} [{video_resolution} {aither_type}] on AITHER"
+                        )
+                    else:
+                        logger.info(
+                            f"[{video_resolution} {aither_type}] already exists on AITHER"
+                        )
+            time.sleep(sleep_timer)
 
 # pull banned groups from aither api
 def get_banned_groups(session):
@@ -390,7 +466,7 @@ def main():
                         out_sonarr, "w", encoding="utf-8", buffering=1
                     ) as not_found_file:
                         for show in shows:
-                            process_show(session, show, not_found_file, banned_groups)
+                            process_show(session, show, not_found_file, banned_groups, args.sleep_timer)
                             time.sleep(args.sleep_timer)  # Respectful delay
                 else:
                     logger.warning(
