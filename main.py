@@ -12,7 +12,7 @@ class NoNewlineStreamHandler(logging.StreamHandler):
         try:
             msg = self.format(record)
             stream = self.stream
-            if record.levelno == logging.INFO and msg.endswith("... "):
+            if record.levelno == logging.INFO and (msg.endswith("... ") or msg.endswith(" ")):
                 stream.write(msg)
             else:
                 stream.write(msg + "\n")
@@ -128,6 +128,7 @@ def get_all_movies(session):
     response = session.get(radarr_url, headers={"X-Api-Key": apiKey.radarr_key})
     response.raise_for_status()  # Ensure we handle request errors properly
     movies = response.json()
+    movies = sorted(movies, key=lambda x: x['title'])
     return movies
 
 
@@ -137,6 +138,7 @@ def get_all_shows(session):
     response = session.get(sonarr_url, headers={"X-Api-Key": apiKey.sonarr_key})
     response.raise_for_status()  # Ensure we handle request errors properly
     shows = response.json()
+    shows = sorted(shows, key=lambda x: x['title'])
     return shows
 
 
@@ -343,66 +345,78 @@ def process_show(session, show, not_found_file, banned_groups, sleep_timer):
     title = show["title"]
     tvdb_id = show["tvdbId"]
 
+    if len(show["seasons"]) > 1:
+        logger.info("")  # add newline to put season list below title.
+
     # loop through shows seasons
     for season in show["seasons"]:
         season_number = season["seasonNumber"]
         # print(f"season: {season_number}")
+        logger.info(f"Season {season_number}... ")
 
         # skip specials and incomplete seasons for now
         if season_number > 0 and season['statistics']["percentOfEpisodes"] == 100:
-            logger.info(f"Checking {title} Season {season_number}... ")
             # pull episodes for the season
             episodes = get_season_episodes(session, show, season_number)
             # get resolution and type from first ep. assume season pack and all the same
             episode = episodes[0]
 
-            # skip check if group is banned.
-            banned_names = [d['name'] for d in banned_groups]
-            if "releaseGroup" in episode["episodeFile"] and \
-                    episode["episodeFile"]["releaseGroup"].casefold() in map(str.casefold, banned_names):
-                logger.info(
-                    f"[Banned: local] group ({episode['episodeFile']['releaseGroup']}) for {title}"
-                )
-                return
-
-            quality_info = episode.get("episodeFile").get("quality").get("quality")
-            source = quality_info.get("source")
-            video_type = quality_info.get("name") # WEBDL-1080p
-            # print(f"\nsource: {source}, video_type: {video_type}")
-            aither_type = get_video_type(source, video_type)
-            aither_type_id = None
-            if aither_type != "OTHER":
-                aither_type_id = TYPE_MAP.get(aither_type.upper())
-            video_resolution = quality_info.get("resolution")
-            aither_resolutions = get_aither_resolutions(str(video_resolution))
-
-            try:
-                torrents = search_show(session, tvdb_id, season_number, aither_resolutions, aither_type_id)
-            except Exception as e:
-                if "429" in str(e):
-                    logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
-                else:
-                    logger.error(f"Error: {str(e)}")
-                    not_found_file.write(f"{title} - Error: {str(e)}\n")
-            else:
-                if len(torrents) == 0:
+            # skip if there are no episode files
+            if "episodeFile" in episode:
+                # skip check if group is banned.
+                banned_names = [d['name'] for d in banned_groups]
+                if "releaseGroup" in episode["episodeFile"] and \
+                        episode["episodeFile"]["releaseGroup"].casefold() in map(str.casefold, banned_names):
                     logger.info(
-                        f"[{video_resolution} {aither_type}] not found on AITHER"
+                        f"[Banned: local] group ({episode['episodeFile']['releaseGroup']}) for {title}"
                     )
-                    filepath = os.path.dirname(episode["episodeFile"]["path"])
-                    not_found_file.write(f"{filepath}\n")
-                else:
-                    release_info = guessit(torrents[0].get("attributes").get("name"))
-                    if "release_group" in release_info \
-                            and release_info["release_group"].casefold() in map(str.casefold, banned_names):
-                        logger.info(
-                            f"[Trumpable: Banned] group for {title} [{video_resolution} {aither_type}] on AITHER"
-                        )
+                    return
+
+                quality_info = episode.get("episodeFile").get("quality").get("quality")
+                source = quality_info.get("source")
+                video_type = quality_info.get("name") # WEBDL-1080p
+                # print(f"\nsource: {source}, video_type: {video_type}")
+                aither_type = get_video_type(source, video_type)
+                aither_type_id = None
+                if aither_type != "OTHER":
+                    aither_type_id = TYPE_MAP.get(aither_type.upper())
+                video_resolution = quality_info.get("resolution")
+                aither_resolutions = get_aither_resolutions(str(video_resolution))
+
+                try:
+                    torrents = search_show(session, tvdb_id, season_number, aither_resolutions, aither_type_id)
+                except Exception as e:
+                    if "429" in str(e):
+                        logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
                     else:
+                        logger.error(f"Error: {str(e)}")
+                        not_found_file.write(f"{title} - Error: {str(e)}\n")
+                else:
+                    if len(torrents) == 0:
                         logger.info(
-                            f"[{video_resolution} {aither_type}] already exists on AITHER"
+                            f"[{video_resolution} {aither_type}] not found on AITHER"
                         )
-            time.sleep(sleep_timer)
+                        filepath = os.path.dirname(episode["episodeFile"]["path"])
+                        not_found_file.write(f"{filepath}\n")
+                    else:
+                        release_info = guessit(torrents[0].get("attributes").get("name"))
+                        if "release_group" in release_info \
+                                and release_info["release_group"].casefold() in map(str.casefold, banned_names):
+                            logger.info(
+                                f"[Trumpable: Banned] group for {title} [{video_resolution} {aither_type}] on AITHER"
+                            )
+                        else:
+                            logger.info(
+                                f"[{video_resolution} {aither_type}] already exists on AITHER"
+                            )
+                time.sleep(sleep_timer)
+            else:
+                logger.info(f"[{season['statistics']["percentOfEpisodes"]}%] skipping missing file")
+        else:
+            if season_number == 0:
+                logger.info(f"skipping specials")
+            else:
+                logger.info(f"[{season['statistics']["percentOfEpisodes"]}%] skipping incomplete")
 
 # pull banned groups from aither api
 def get_banned_groups(session):
@@ -476,7 +490,9 @@ def main():
                     with open(
                         out_sonarr, "w", encoding="utf-8", buffering=1
                     ) as not_found_file:
-                        for show in shows:
+                        total = len(shows)
+                        for index, show in enumerate(shows):
+                            logger.info(f"[{index+1}/{total}] Checking {show["title"]}: ")
                             process_show(session, show, not_found_file, banned_groups, args.sleep_timer)
                             time.sleep(args.sleep_timer)  # Respectful delay
                 else:
