@@ -505,8 +505,6 @@ def main():
                     ) as not_found_file:
                         total = len(shows)
                         for index, show in enumerate(shows):
-                            if index < 184:
-                                continue
                             logger.info(f"[{index+1}/{total}] Checking {show["title"]}: ")
                             process_show(session, show, not_found_file, banned_groups, args.sleep_timer)
                             time.sleep(args.sleep_timer)  # Respectful delay
