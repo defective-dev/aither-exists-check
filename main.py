@@ -277,11 +277,10 @@ def process_movie(session, movie, not_found_file, banned_groups):
             release_info = guessit(movie.get("movieFile").get("relativePath"))
             modifier = release_info.get("other")
         video_type = get_video_type(source, modifier)
-        aither_type = TYPE_MAP.get(video_type.upper())
         aither_type_id = None
         # if other don't include video type in search filters only resolution
-        if aither_type != "OTHER":
-            aither_type_id = TYPE_MAP.get(aither_type.upper())
+        if video_type != "OTHER":
+            aither_type_id = TYPE_MAP.get(video_type.upper())
         video_resolution = get_movie_resolution(movie)
         aither_resolutions = get_aither_resolutions(str(video_resolution))
         torrents = search_movie(session, movie, aither_resolutions, aither_type_id)
