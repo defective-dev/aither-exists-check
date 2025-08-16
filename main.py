@@ -206,11 +206,13 @@ def get_video_type(source, modifier):
     if not isinstance(modifier, list):
         modifier = (modifier or '').lower()
     else:
-        try:
-            index_element = next(i for i, v in enumerate(modifier) if v.lower() == "Remux".lower())
+        index_element = next((i for i, v in enumerate(modifier) if v.lower() == "remux"), None)
+        if index_element != None:
             modifier = modifier[index_element].lower()
-        except ValueError:
-            modifier = modifier[0].lower()
+        else:
+            index_element = next((i for i, v in enumerate(modifier) if v.lower() == "rip"), None)
+            if index_element != None:
+                modifier = modifier[index_element].lower()
 
     if source == 'bluray':
         if modifier == 'remux':
@@ -503,6 +505,8 @@ def main():
                     ) as not_found_file:
                         total = len(shows)
                         for index, show in enumerate(shows):
+                            if index < 184:
+                                continue
                             logger.info(f"[{index+1}/{total}] Checking {show["title"]}: ")
                             process_show(session, show, not_found_file, banned_groups, args.sleep_timer)
                             time.sleep(args.sleep_timer)  # Respectful delay
