@@ -13,17 +13,18 @@ async def get_season_episodes(session, show, season_number, app_configs: CONFIG)
     async with session.get(url, headers={"X-Api-Key": app_configs.SONARR['api_key']}) as response:
         response.raise_for_status()  # Raise an exception if the request failed
         res = await response.json()
-        # episodes = res["data"]
         return res
 
 # Function to search for a show in Aither using its TVDB ID
-async def search_show(session, tvdb_id, season_number, video_resolution, video_type, tracker):
+async def search_show(session, show, season_number, video_resolutions, video_type, tracker):
     category_id = tracker.get_cat_id("TV")
+    tvdb_id = show["tvdbId"]
+
     url = f"{tracker.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
     if season_number:
         url += f"&seasonNumber={season_number}"
-    if video_resolution:
-        for index, resolution in enumerate(video_resolution):
+    if len(video_resolutions) > 0:
+        for index, resolution in enumerate(video_resolutions):
             url += f"&resolutions[{index}]={resolution}"
     if video_type:
         url += f"&types[0]={video_type}"
@@ -38,7 +39,6 @@ async def search_show(session, tvdb_id, season_number, video_resolution, video_t
 # Function to process each show
 async def process_show(session, show, app_configs: CONFIG, tracker):
     title = show["title"]
-    tvdb_id = show["tvdbId"]
 
     # loop through shows seasons
     for season in show["seasons"]:
@@ -78,11 +78,13 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
             # print(f"\nsource: {source}, video_type: {video_type}")
 
             video_type = utils.get_video_type(source, video_type)
-            tracker_type = tracker.get_type_id(video_type.upper())
+            tracker_type = None
+            if video_type != "OTHER":
+                tracker_type = tracker.get_type_id(video_type.upper())
             media_resolution = str(quality_info.get("resolution"))
             tracker_resolutions = utils.get_video_resolutions(tracker, media_resolution)
             try:
-                torrents = await search_show(session, tvdb_id, season_number, tracker_resolutions, tracker_type, tracker)
+                torrents = await search_show(session, show, season_number, tracker_resolutions, tracker_type, tracker)
             except Exception as e:
                 if "429" in str(e):
                     logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")

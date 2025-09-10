@@ -25,15 +25,15 @@ def get_movie_resolution(movie):
 # Function to search for a movie in Aither using its TMDB ID + resolution if found
 async def search_movie(session, movie, video_resolutions, video_type, tracker):
     tmdb_id = movie["tmdbId"]
+    category_id = tracker.get_cat_id("MOVIE")
 
     # build the search url
-    category_id = tracker.get_cat_id("MOVIE")
     url = f"{tracker.URL}/api/torrents/filter?categories[0]={category_id}&tmdbId={tmdb_id}"
     if len(video_resolutions) > 0:
         for index, resolution in enumerate(video_resolutions):
             if resolution != 0:
                 url += f"&resolutions[{index}]={resolution}"
-    if video_type and video_type != 0:
+    if video_type:
         url += f"&types[0]={video_type}"
 
     async with session.get(url, headers={"Authorization": f"Bearer {tracker.api_key}"}) as response:
@@ -79,7 +79,9 @@ async def process_movie(session, movie, tracker):
             release_info = guessit(movie.get("movieFile").get("relativePath"))
             modifier = release_info.get("other")
         video_type = utils.get_video_type(source, modifier)
-        tracker_type = tracker.get_type_id(video_type.upper())
+        tracker_type = None
+        if video_type != "OTHER":
+            tracker_type = tracker.get_type_id(video_type.upper())
         media_resolution = str(get_movie_resolution(movie))
         tracker_resolutions = utils.get_video_resolutions(tracker, media_resolution)
         torrents = await search_movie(session, movie, tracker_resolutions, tracker_type, tracker)
@@ -121,7 +123,6 @@ async def process_movie(session, movie, tracker):
 
 # Function to get all movies from Radarr
 async def get_all_movies(session, app_configs: CONFIG):
-    movies = []
     radarr_url = app_configs.RADARR['url'] + app_configs.RADARR['api_suffix']
     async with session.get(radarr_url, headers={"X-Api-Key": app_configs.RADARR['api_key']}) as response:
         response.raise_for_status()  # Ensure we handle request errors properly
