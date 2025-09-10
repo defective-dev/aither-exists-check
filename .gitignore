@@ -1,5 +1,7 @@
-/apiKey.py
+/config.py
 /__pycache__
 /not_found_radarr.txt
 /not_found_sonarr.txt
 /script.log
+output/
+.idea/
