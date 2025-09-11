@@ -115,6 +115,9 @@ async def process_movie(session, movie, tracker):
                 logger.info(
                     f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type} {release_info['release_group']}] on AITHER"
                 )
+                movie_file = movie["movieFile"]["path"]
+                if movie_file:
+                    tracker.radarr_trump_file.writerow([movie_file, 'Banned group'])
             else:
                 logger.info(
                     f"[{media_resolution} {video_type}] already exists on AITHER"

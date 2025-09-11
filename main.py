@@ -47,10 +47,10 @@ async def main():
     # config = ChainMap(args, env_vars, defaults)
     configs: CONFIG = CONFIG
     # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
-    if args.output_path is not None:
+    if args.output_path:
         configs.LOG_FILES["output_path"] = args.output_path
-        configs.RADARR["enabled"] = args.radarr or (not args.sonarr and not args.radarr)
-        configs.SONARR["enabled"] = args.sonarr or (not args.sonarr and not args.radarr)
+    configs.RADARR["enabled"] = args.radarr or (not args.sonarr and not args.radarr)
+    configs.SONARR["enabled"] = args.sonarr or (not args.sonarr and not args.radarr)
 
     if args.sleep_timer is not None:
         configs.SLEEP_TIMER = args.sleep_timer

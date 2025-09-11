@@ -105,6 +105,9 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
                         logger.info(
                             f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type}] on AITHER"
                         )
+                        filepath = os.path.dirname(episode["episodeFile"]["path"])
+                        if filepath:
+                            tracker.radarr_trump_file.writerow([filepath, 'Banned group'])
                     else:
                         logger.info(
                             f"[{media_resolution} {video_type}] already exists on AITHER"

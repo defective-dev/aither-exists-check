@@ -18,6 +18,22 @@ class NoNewlineStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
 
+class CustomFileHandlerNewLines(logging.FileHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            if record.levelno == logging.INFO and msg.endswith("... "):
+                stream.write(msg)
+            else:
+                parts = msg.split(" - ", 2)
+                if len(parts) == 2:  # If there's only one delimiter, it means the second one doesn't exist
+                    msg = parts[1]
+                stream.write(msg + "\n")
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 def setup_logging(app_configs: CONFIG):
     # Setup logging
     logger = logging.getLogger("customLogger")
@@ -31,11 +47,11 @@ def setup_logging(app_configs: CONFIG):
 
     # File handler with detailed format
     output_path = app_configs.LOG_FILES.get("output_path")
-    if output_path is not None:
+    if output_path:
         script_log = os.path.join(os.path.expanduser(output_path), app_configs.LOG_FILES["script_log"])
     else:
         script_log = os.path.join(os.path.expanduser(app_configs.LOG_FILES["script_log"]))
-    file_handler = logging.FileHandler(str(script_log))
-    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    file_handler = CustomFileHandlerNewLines(str(script_log)) #logging.FileHandler(str(script_log))
+    file_formatter = logging.Formatter("%(message)s")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)

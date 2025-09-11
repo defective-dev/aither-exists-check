@@ -54,6 +54,8 @@ As this script becomes more granular, and checking against Aither's resolutions,
    
         # create config.py and mimic this file
         RADARR = {
+            # scan radarr. using command line --radarr or --sonarr will override this value
+            "enabled": True,
             # radarr -> settings -> general
             "api_key": "",
             # radarr port typically 7878, local DNS should work if you have it setup, else "localhost" if local machine
@@ -62,6 +64,8 @@ As this script becomes more granular, and checking against Aither's resolutions,
         }
     
         SONARR = {
+            # scan sonarr. using command line --radarr or --sonarr will override this value
+            "enabled": True,
             # sonarr -> settings -> general
             "api_key": "",
             # sonarr port typically 8989, local DNS should work if you have it setup, else "localhost" if local machine
@@ -74,8 +78,8 @@ As this script becomes more granular, and checking against Aither's resolutions,
             "script_log": "script.log",
             "not_found_radarr": "radarr-not_found.txt",
             "not_found_sonarr": "sonarr-not_found.txt",
-            "trump_radarr": "radarr-trump.txt",
-            "trump_sonarr": "sonarr-trump.txt"
+            "trump_radarr": "radarr-trump.csv",
+            "trump_sonarr": "sonarr-trump.csv"
         }
     
         TRACKERS_SEARCH = ["AITHER"]
