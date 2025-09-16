@@ -22,31 +22,24 @@ def get_movie_resolution(movie):
     return movie_resolution
 
 
-# Function to search for a movie in Aither using its TMDB ID + resolution if found
-async def search_movie(session, movie, video_resolutions, video_type, tracker):
-    tmdb_id = movie["tmdbId"]
-    category_id = tracker.get_cat_id("MOVIE")
-
-    # build the search url
-    url = f"{tracker.URL}/api/torrents/filter?categories[0]={category_id}&tmdbId={tmdb_id}"
-    if len(video_resolutions) > 0:
-        for index, resolution in enumerate(video_resolutions):
-            if resolution != 0:
-                url += f"&resolutions[{index}]={resolution}"
-    if video_type:
-        url += f"&types[0]={video_type}"
-
-    async with session.get(url, headers={"Authorization": f"Bearer {tracker.api_key}"}) as response:
-        response.raise_for_status()  # Raise an exception if the request failed
-        res = await response.json()
-        torrents = res["data"]
-        return torrents
+# Function to search for a movie on tracker using its TMDB ID + resolution if found
+# async def search_movie(session, movie, video_resolutions, video_type, tracker):
+#     tmdb_id = movie["tmdbId"]
+#
+#     # build the search url
+#     url = tracker.get_search_url("MOVIE", video_resolutions, video_type, tmdb_id)
+#
+#     async with session.post(url, headers={"Authorization": f"Bearer {tracker.api_key}"}) as response:
+#         response.raise_for_status()  # Raise an exception if the request failed
+#         res = await response.json()
+#         torrents = res["data"]
+#         return torrents
 
 
 # Function to process each movie
 async def process_movie(session, movie, tracker):
     title = movie["title"]
-    logger.info(f"Checking {title}... ")
+    logger.info(f"[{tracker.__class__.__name__}] Checking {title}... ")
 
     # verify radarr actually has a file entry if not skip check and save api call
     if not "movieFile" in movie:
@@ -72,56 +65,13 @@ async def process_movie(session, movie, tracker):
             return
 
     try:
-        quality_info = movie.get("movieFile").get("quality").get("quality")
-        source = quality_info.get("source")
-        modifier = quality_info.get("modifier")
-        if modifier == "none" and source == "dvd":
-            release_info = guessit(movie.get("movieFile").get("relativePath"))
-            modifier = release_info.get("other")
-        video_type = utils.get_video_type(source, modifier)
-        tracker_type = None
-        if video_type != "OTHER":
-            tracker_type = tracker.get_type_id(video_type.upper())
-        media_resolution = str(get_movie_resolution(movie))
-        tracker_resolutions = utils.get_video_resolutions(tracker, media_resolution)
-        torrents = await search_movie(session, movie, tracker_resolutions, tracker_type, tracker)
+        await tracker.search_movie(session, movie)
     except Exception as e:
         if "429" in str(e):
             logger.warning(f"Rate limit exceeded while checking {title}.")
         else:
             logger.error(f"Error: {str(e)}")
             tracker.radarr_not_found_file.write(f"{title} - Error: {str(e)}\n")
-    else:
-        if len(torrents) == 0:
-            try:
-                movie_file = movie["movieFile"]["path"]
-                if movie_file:
-                    logger.info(
-                        f"[{media_resolution} {video_type}] not found on AITHER"
-                    )
-                    tracker.radarr_not_found_file.write(f"{movie_file}\n")
-                else:
-                    logger.info(
-                        f"[{media_resolution} {video_type}] not found on AITHER (No media file)"
-                    )
-            except KeyError:
-                logger.info(
-                    f"[{media_resolution} {video_type}] not found on AITHER (No media file)"
-                )
-        else:
-            release_info = guessit(torrents[0].get("attributes").get("name"))
-            if "release_group" in release_info \
-                    and release_info["release_group"].casefold() in map(str.casefold, tracker.banned_groups):
-                logger.info(
-                    f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type} {release_info['release_group']}] on AITHER"
-                )
-                movie_file = movie["movieFile"]["path"]
-                if movie_file:
-                    tracker.radarr_trump_file.writerow([movie_file, 'Banned group'])
-            else:
-                logger.info(
-                    f"[{media_resolution} {video_type}] already exists on AITHER"
-                )
 
 
 # Function to get all movies from Radarr

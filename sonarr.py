@@ -47,7 +47,7 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
 
         # skip specials and incomplete seasons for now
         if season_number > 0 and season['statistics']["percentOfEpisodes"] == 100:
-            logger.info(f"Checking {title} Season {season_number}... ")
+            logger.info(f"[{tracker.__class__.__name__}] Checking {title} Season {season_number}... ")
             # pull episodes for the season
             episodes = await get_season_episodes(session, show, season_number, app_configs)
             # get resolution and type from first ep. assume season pack and all the same
@@ -94,7 +94,7 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
             else:
                 if len(torrents) == 0:
                     logger.info(
-                        f"[{media_resolution} {video_type}] not found on AITHER"
+                        f"[{media_resolution} {video_type}] not found"
                     )
                     filepath = os.path.dirname(episode["episodeFile"]["path"])
                     tracker.radarr_not_found_file.write(f"{filepath}\n")
@@ -103,14 +103,14 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
                     if "release_group" in release_info \
                             and release_info["release_group"].casefold() in map(str.casefold, tracker.banned_groups):
                         logger.info(
-                            f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type}] on AITHER"
+                            f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type}]"
                         )
                         filepath = os.path.dirname(episode["episodeFile"]["path"])
                         if filepath:
                             tracker.radarr_trump_file.writerow([filepath, 'Banned group'])
                     else:
                         logger.info(
-                            f"[{media_resolution} {video_type}] already exists on AITHER"
+                            f"[{media_resolution} {video_type}] already exists"
                         )
             time.sleep(app_configs.SLEEP_TIMER)
 

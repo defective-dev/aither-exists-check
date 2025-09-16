@@ -43,10 +43,10 @@ async def main():
     parser.add_argument("-s", "--sleep-timer", type=int, required=False, default=None, help="Sleep time between calls")
 
     args = parser.parse_args()
+    # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
     # env_vars = {k.lower().replace('app_', ''): v for k, v in os.environ.items() if k.startswith('APP_')}
     # config = ChainMap(args, env_vars, defaults)
     configs: CONFIG = CONFIG
-    # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
     if args.output_path:
         configs.LOG_FILES["output_path"] = args.output_path
     configs.RADARR["enabled"] = args.radarr or (not args.sonarr and not args.radarr)
@@ -82,12 +82,6 @@ async def main():
             if args.radarr or (not args.sonarr and not args.radarr):
                 if configs.RADARR['api_key'] and configs.RADARR['url']:
                     movies = await radarr.get_all_movies(session, configs)
-                    # out_radarr = configs.LOG_FILES['not_found_radarr']
-                    # if args.output_path is not None:
-                    #     out_radarr = os.path.join(os.path.expanduser(args.output_path), configs.LOG_FILES['not_found_radarr'])
-                    # with open(
-                    #     out_radarr, "w", encoding="utf-8", buffering=1
-                    # ) as not_found_file:
                     for movie in movies:
                         tasks = [radarr.process_movie(session, movie, tracker) for tracker in sites]
                         await asyncio.gather(*tasks)
@@ -100,12 +94,6 @@ async def main():
             if args.sonarr or (not args.sonarr and not args.radarr):
                 if configs.SONARR['api_key'] and configs.SONARR['url']:
                     shows = await sonarr.get_all_shows(session, configs)
-                    # out_sonarr = configs.LOG_FILES['not_found_sonarr']
-                    # if args.output_path is not None:
-                    #     out_sonarr = os.path.join(os.path.expanduser(args.output_path), configs.LOG_FILES['not_found_sonarr'])
-                    # with open(
-                    #     out_sonarr, "w", encoding="utf-8", buffering=1
-                    # ) as not_found_file:
                     for show in shows:
                         tasks = [sonarr.process_show(session, show, configs, tracker) for tracker in sites]
                         await asyncio.gather(*tasks)

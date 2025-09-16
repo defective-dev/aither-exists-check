@@ -49,26 +49,6 @@ def sites_from_config(search_list, app_configs: CONFIG):
             print(f"Error: {e}")
     return sites
 
-def get_video_resolutions(tracker, video_resolution):
-    resolutions = []
-
-    if video_resolution not in ["1080", "1080p", "576", "576p", "480", "480p"]:
-        resolutions.append(tracker.get_res_id(video_resolution))
-    else:
-        if video_resolution == "1080" or  video_resolution == "1080p":
-            resolutions.append(tracker.get_res_id("1080"))
-            resolutions.append(tracker.get_res_id("1080p"))
-
-        if video_resolution == "576" or  video_resolution == "576p":
-            resolutions.append(tracker.get_res_id("576"))
-            resolutions.append(tracker.get_res_id("576p"))
-
-        if video_resolution == "480" or  video_resolution == "480p":
-            resolutions.append(tracker.get_res_id("480"))
-            resolutions.append(tracker.get_res_id("480p"))
-
-    return resolutions
-
 def get_video_type(source, modifier):
     if not isinstance(source, list):
         source = (source or '').lower()

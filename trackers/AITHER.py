@@ -1,46 +1,21 @@
 import logging
-import os
-import csv
+
+from guessit import guessit
+
+import radarr
+import utils
 from config import CONFIG
+from trackers.TrackerBase import TrackerBase
 
 logger = logging.getLogger("customLogger")
 
-class AITHER:
+class AITHER(TrackerBase):
     def __init__(self, app_configs: CONFIG):
+        super().__init__()
         self.URL =  "https://aither.cc"
         self.api_key = app_configs.TRACKER_LIST[__class__.__name__].get("api_key")
-        self.banned_groups = []
-        self.radarr_not_found_file = None
-        self.radarr_trump_file = None
-        self.sonarr_not_found_file = None
-        self.sonarr_trump_file = None
         self.setup_log_files(app_configs)
         pass
-
-    def setup_log_files(self, app_configs: CONFIG):
-        output_path = app_configs.LOG_FILES.get("output_path")
-        out_radarr = CONFIG.LOG_FILES['not_found_radarr']
-        if output_path is not None:
-            log_path = os.path.join(os.path.expanduser(output_path), self.__class__.__name__)
-        else:
-            log_path = os.path.join(os.path.expanduser(self.__class__.__name__))
-        os.makedirs(log_path, exist_ok=True)
-        if app_configs.RADARR.get("enabled"):
-            out_category = os.path.join(log_path, CONFIG.LOG_FILES['not_found_radarr'])
-            out_trump = os.path.join(log_path, CONFIG.LOG_FILES['trump_radarr'])
-            self.radarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)
-            csv_headers = ['File', 'Reason']
-            with open(out_trump, 'w', newline='', encoding='utf-8') as csv_file:
-                self.radarr_trump_file = csv.DictWriter(csv_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                self.radarr_trump_file.writeheader()
-
-        if app_configs.SONARR.get("enabled"):
-            out_category = os.path.join(log_path, CONFIG.LOG_FILES['not_found_sonarr'])
-            out_trump = os.path.join(log_path, CONFIG.LOG_FILES['trump_sonarr'])
-            self.sonarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)
-            with open(out_trump, 'w', newline='', encoding='utf-8') as csv_file:
-                self.sonarr_trump_file = csv.DictWriter(csv_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                self.sonarr_trump_file.writeheader()
 
     def get_cat_id(self, category_name):
         category_id = {
@@ -88,6 +63,98 @@ class AITHER:
         else:
             # Return the full mapping
             return resolution_mapping
+
+    def get_video_resolutions(self, video_resolution):
+        resolutions = []
+
+        if video_resolution not in ["1080", "1080p", "576", "576p", "480", "480p"]:
+            resolutions.append(self.get_res_id(video_resolution))
+        else:
+            if video_resolution == "1080" or video_resolution == "1080p":
+                resolutions.append(self.get_res_id("1080"))
+                resolutions.append(self.get_res_id("1080p"))
+
+            if video_resolution == "576" or video_resolution == "576p":
+                resolutions.append(self.get_res_id("576"))
+                resolutions.append(self.get_res_id("576p"))
+
+            if video_resolution == "480" or video_resolution == "480p":
+                resolutions.append(self.get_res_id("480"))
+                resolutions.append(self.get_res_id("480p"))
+
+        return resolutions
+
+    def get_search_url(self, category, video_resolutions, video_type, tmdb_id=None, tvdb_id=None):
+        # build the search url
+        category_id = self.get_cat_id(category.upper())
+        search_url = f"{self.URL}/api/torrents/filter?categories[0]={category_id}"
+        if tmdb_id:
+            search_url += f"&tmdbId={tmdb_id}"
+        if tvdb_id:
+            search_url += f"&tvdbId={tvdb_id}"
+        if len(video_resolutions) > 0:
+            for index, resolution in enumerate(video_resolutions):
+                if resolution != 0:
+                    search_url += f"&resolutions[{index}]={resolution}"
+        if video_type:
+            search_url += f"&types[0]={video_type}"
+
+        return search_url
+
+    async def search_movie(self, session, movie):
+        tmdb_id = movie["tmdbId"]
+        quality_info = movie.get("movieFile").get("quality").get("quality")
+        source = quality_info.get("source")
+        modifier = quality_info.get("modifier")
+        if modifier == "none" and source == "dvd":
+            release_info = guessit(movie.get("movieFile").get("relativePath"))
+            modifier = release_info.get("other")
+        video_type = utils.get_video_type(source, modifier)
+        video_type_id = None
+        if video_type != "OTHER":
+            video_type_id = self.get_type_id(video_type.upper())
+        media_resolution = str(radarr.get_movie_resolution(movie))
+        video_resolutions = self.get_video_resolutions(self, media_resolution)
+        # build the search url
+        search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
+
+        async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+            response.raise_for_status()  # Raise an exception if the request failed
+            res = await response.json()
+            torrents = res["data"]
+
+            if len(torrents) == 0:
+                try:
+                    movie_file = movie["movieFile"]["path"]
+                    if movie_file:
+                        logger.info(
+                            f"[{media_resolution} {video_type}] not found"
+                        )
+                        self.radarr_not_found_file.write(f"{movie_file}\n")
+                    else:
+                        logger.info(
+                            f"[{media_resolution} {video_type}] not found{self.__class__.__name__} (No media file)"
+                        )
+                except KeyError:
+                    logger.info(
+                        f"[{media_resolution} {video_type}] not found{self.__class__.__name__} (No media file)"
+                    )
+            else:
+                release_info = guessit(torrents[0].get("attributes").get("name"))
+                if "release_group" in release_info \
+                        and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
+                    title = movie["title"]
+                    logger.info(
+                        f"[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
+                    )
+                    movie_file = movie["movieFile"]["path"]
+                    if movie_file:
+                        self.radarr_trump_file.writerow([movie_file, 'Banned group'])
+                else:
+                    logger.info(
+                        f"[{media_resolution} {video_type}] already exists"
+                    )
+
 
     # pull banned groups from aither api
     async def get_banned_groups(self, session):
