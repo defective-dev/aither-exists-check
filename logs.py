@@ -10,7 +10,7 @@ class NoNewlineStreamHandler(logging.StreamHandler):
         try:
             msg = self.format(record)
             stream = self.stream
-            if record.levelno == logging.INFO and msg.endswith("... "):
+            if record.levelno == logging.INFO and (msg.endswith("... ") or msg.endswith(" ")):
                 stream.write(msg)
             else:
                 stream.write(msg + "\n")
@@ -23,7 +23,7 @@ class CustomFileHandlerNewLines(logging.FileHandler):
         try:
             msg = self.format(record)
             stream = self.stream
-            if record.levelno == logging.INFO and msg.endswith("... "):
+            if record.levelno == logging.INFO and (msg.endswith("... ") or msg.endswith(" ")):
                 stream.write(msg)
             else:
                 parts = msg.split(" - ", 2)

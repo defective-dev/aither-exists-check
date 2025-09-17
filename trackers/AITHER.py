@@ -101,7 +101,36 @@ class AITHER(TrackerBase):
 
         return search_url
 
-    async def search_movie(self, session, movie):
+    async def is_group_banned(self, movie) -> bool:
+        # skip check if group is banned.
+
+        # check if banned groups still empty and display warning.
+        if len(self.banned_groups) == 0:
+            logger.error(
+                f"Banned groups missing. Checks will be skipped."
+            )
+        else:
+            if "releaseGroup" in movie["movieFile"] and \
+                    movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, self.banned_groups):
+                title = movie.get("title")
+                logger.info(
+                    f"[Banned: local] group ({movie['movieFile']['releaseGroup']}) for {title}"
+                )
+                return True
+        return False
+
+    async def search_movie(self, session, movie, indent=False):
+        # update banned groups if tracker supports it
+        if len(self.banned_groups) == 0:
+            try:
+                banned_groups = await self.fetch_banned_groups(session)
+                self.banned_groups = banned_groups
+            except Exception as e:
+                logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
+        # check if local group is banned on tracker
+        if await self.is_group_banned(movie):
+            return
+
         tmdb_id = movie["tmdbId"]
         quality_info = movie.get("movieFile").get("quality").get("quality")
         source = quality_info.get("source")
@@ -114,8 +143,9 @@ class AITHER(TrackerBase):
         if video_type != "OTHER":
             video_type_id = self.get_type_id(video_type.upper())
         media_resolution = str(radarr.get_movie_resolution(movie))
-        video_resolutions = self.get_video_resolutions(self, media_resolution)
+        video_resolutions = self.get_video_resolutions(media_resolution)
         # build the search url
+        log_prefix = f"{"\t" if indent else ""}{self.__class__.__name__} [{media_resolution} {video_type}]... "
         search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
 
         async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
@@ -128,16 +158,16 @@ class AITHER(TrackerBase):
                     movie_file = movie["movieFile"]["path"]
                     if movie_file:
                         logger.info(
-                            f"[{media_resolution} {video_type}] not found"
+                            f"{log_prefix}not found"
                         )
                         self.radarr_not_found_file.write(f"{movie_file}\n")
                     else:
                         logger.info(
-                            f"[{media_resolution} {video_type}] not found{self.__class__.__name__} (No media file)"
+                            f"{log_prefix}not found. (No media file)"
                         )
                 except KeyError:
                     logger.info(
-                        f"[{media_resolution} {video_type}] not found{self.__class__.__name__} (No media file)"
+                        f"{log_prefix}not found. (No media file)"
                     )
             else:
                 release_info = guessit(torrents[0].get("attributes").get("name"))
@@ -145,22 +175,25 @@ class AITHER(TrackerBase):
                         and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
                     title = movie["title"]
                     logger.info(
-                        f"[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
+                        f"{log_prefix}[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
                     )
                     movie_file = movie["movieFile"]["path"]
                     if movie_file:
                         self.radarr_trump_file.writerow([movie_file, 'Banned group'])
                 else:
                     logger.info(
-                        f"[{media_resolution} {video_type}] already exists"
+                        f"{log_prefix}already exists"
                     )
 
+        logger.debug(
+            f"[{self.__class__.__name__}] search url: {search_url}"
+        )
 
     # pull banned groups from aither api
-    async def get_banned_groups(self, session):
+    async def fetch_banned_groups(self, session):
         # logger.info("Fetching banned groups")
 
-        groups = []
+        banned_groups = []
         url = f"{self.URL}/api/blacklists/releasegroups?api_token={self.api_key}"
         async with session.get(url) as response:
             # if response.status_code == 429:
@@ -169,5 +202,5 @@ class AITHER(TrackerBase):
             response.raise_for_status()  # Raise an exception if the request failed
             res = await response.json()
             groups = res["data"]
-            self.banned_groups = [d['name'] for d in groups]
-        return self.banned_groups
+            banned_groups = [d['name'] for d in groups]
+        return banned_groups

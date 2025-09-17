@@ -1,6 +1,4 @@
 import logging
-import radarr
-import utils
 from config import CONFIG
 from trackers.TrackerBase import TrackerBase
 from guessit import guessit
@@ -30,7 +28,7 @@ class BHD(TrackerBase):
             "blu-ray": "Blu-ray",
             "bluray": "Blu-ray",
             "hddvd": "HD-DVD",
-            # "hd dvd": "HD-DVD",
+            "hd dvd": "HD-DVD",
             "web": "WEB",
             "webdl": "WEB",
             "web-dl": "WEB",
@@ -99,7 +97,7 @@ class BHD(TrackerBase):
                 url += f"&types={tracker_types}"
         return url
 
-    async def search_movie(self, session, movie):
+    async def search_movie(self, session, movie, indent=False):
         tmdb_id = movie["tmdbId"]
 
         quality_info = movie.get("movieFile").get("quality").get("quality")
@@ -122,9 +120,10 @@ class BHD(TrackerBase):
             tracker_source = tracker_types
 
         # build the search url
-        url = self.get_search_url("MOVIE", tracker_types, tracker_source, tmdb_id)
+        log_prefix = f"{"\t" if indent else ""}{self.__class__.__name__} [{resolution} {tracker_source}]... "
+        search_url = self.get_search_url("MOVIE", tracker_types, tracker_source, tmdb_id)
         # print(f"url: {url}")
-        async with session.post(url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+        async with session.post(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
             response.raise_for_status()  # Raise an exception if the request failed
             res = await response.json()
             torrents = res["results"]
@@ -134,16 +133,16 @@ class BHD(TrackerBase):
                     movie_file = movie["movieFile"]["path"]
                     if movie_file:
                         logger.info(
-                            f"[{resolution} {tracker_source}] not found"
+                            f"{log_prefix}not found"
                         )
                         self.radarr_not_found_file.write(f"{movie_file}\n")
                     else:
                         logger.info(
-                            f"[{resolution} {tracker_source}] not found{self.__class__.__name__} (No media file)"
+                            f"{log_prefix}not found. (No media file)"
                         )
                 except KeyError:
                     logger.info(
-                        f"[{resolution} {tracker_source}] not found{self.__class__.__name__} (No media file)"
+                        f"{log_prefix}not found. (No media file)"
                     )
             else:
                 release_info = guessit(torrents[0].get("name"))
@@ -151,14 +150,17 @@ class BHD(TrackerBase):
                         and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
                     title = movie["title"]
                     logger.info(
-                        f"[Trumpable: Banned Group] for {title} [{resolution} {tracker_source} {release_info['release_group']}]"
+                        f"{log_prefix}[Trumpable: Banned Group] for {title} [{resolution} {tracker_source} {release_info['release_group']}]"
                     )
                     movie_file = movie["movieFile"]["path"]
                     if movie_file:
                         self.radarr_trump_file.writerow([movie_file, 'Banned group'])
                 else:
                     logger.info(
-                        f"[{resolution} {tracker_source}] already exists"
+                        f"{log_prefix}already exists"
                     )
+        logger.debug(
+            f"[{self.__class__.__name__}] search url: {search_url}"
+        )
 
     # def search_show(self, session, show):

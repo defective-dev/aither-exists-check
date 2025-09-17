@@ -56,12 +56,6 @@ async def main():
         configs.SLEEP_TIMER = args.sleep_timer
 
     setup_logging(configs)
-    if args.output_path is not None:
-        script_log = os.path.join(os.path.expanduser(args.output_path), configs.LOG_FILES["script_log"])
-    file_handler = logging.FileHandler(f"{configs.LOG_FILES["script_log"]}")
-    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
 
     radarr_needed = args.radarr or (not args.sonarr and not args.radarr)
     sonarr_needed = args.sonarr or (not args.sonarr and not args.radarr)
@@ -73,8 +67,8 @@ async def main():
         logger.info("No arguments specified. Running both Radarr and Sonarr checks.\n")
 
     # Read list of trackers to search from configs
-    sites = utils.sites_from_config(configs.TRACKERS_SEARCH, configs)
-    if len(sites) == 0:
+    trackers = utils.sites_from_config(configs.TRACKERS_SEARCH, configs)
+    if len(trackers) == 0:
         sys.exit("No trackers to search.")
 
     try:
@@ -82,9 +76,10 @@ async def main():
             if args.radarr or (not args.sonarr and not args.radarr):
                 if configs.RADARR['api_key'] and configs.RADARR['url']:
                     movies = await radarr.get_all_movies(session, configs)
-                    for movie in movies:
-                        tasks = [radarr.process_movie(session, movie, tracker) for tracker in sites]
-                        await asyncio.gather(*tasks)
+                    total = len(movies)
+                    for index, movie in enumerate(movies):
+                        logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
+                        await radarr.process_movie(session, movie, trackers)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:
                     logger.warning(
@@ -94,9 +89,12 @@ async def main():
             if args.sonarr or (not args.sonarr and not args.radarr):
                 if configs.SONARR['api_key'] and configs.SONARR['url']:
                     shows = await sonarr.get_all_shows(session, configs)
-                    for show in shows:
-                        tasks = [sonarr.process_show(session, show, configs, tracker) for tracker in sites]
-                        await asyncio.gather(*tasks)
+                    total = len(shows)
+                    for index, show in enumerate(shows):
+                        logger.info(f"[{index + 1}/{total}] Checking {show["title"]}: ")
+                        # tasks = [sonarr.process_show(session, show, configs, tracker) for tracker in sites]
+                        # await asyncio.gather(*tasks)
+                        sonarr.process_show(session, show, configs, trackers)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:
                     logger.warning(
