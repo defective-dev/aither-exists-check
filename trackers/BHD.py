@@ -97,8 +97,17 @@ class BHD(TrackerBase):
                 url += f"&types={tracker_types}"
         return url
 
-    async def search_movie(self, session, movie, indent=False):
+    async def search_movie(self, session, movie, indented):
         tmdb_id = movie["tmdbId"]
+
+        # update banned groups if tracker supports it
+        if len(self.banned_groups) == 0:
+            logger.error(f"\n[{self.__class__.__name__}] Banned groups empty. Skipping checks.")
+        # check if local group is banned on tracker
+        if "releaseGroup" in movie["movieFile"]:
+            release_group = movie["movieFile"]["releaseGroup"]
+            if self.is_group_banned(release_group):
+                return
 
         quality_info = movie.get("movieFile").get("quality").get("quality")
         source = quality_info.get("source")
@@ -120,7 +129,7 @@ class BHD(TrackerBase):
             tracker_source = tracker_types
 
         # build the search url
-        log_prefix = f"{"\t" if indent else ""}{self.__class__.__name__} [{resolution} {tracker_source}]... "
+        log_prefix = f"{"\t" if indented else ""}{self.__class__.__name__ if indented else ""} [{resolution} {tracker_source}]... "
         search_url = self.get_search_url("MOVIE", tracker_types, tracker_source, tmdb_id)
         # print(f"url: {url}")
         async with session.post(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:

@@ -1,7 +1,5 @@
 import logging
-
 from guessit import guessit
-
 import radarr
 import utils
 from config import CONFIG
@@ -101,25 +99,25 @@ class AITHER(TrackerBase):
 
         return search_url
 
-    async def is_group_banned(self, movie) -> bool:
-        # skip check if group is banned.
+    # def is_group_banned(self, movie) -> bool:
+    #     # skip check if group is banned.
+    #
+    #     # check if banned groups still empty and display warning.
+    #     if len(self.banned_groups) == 0:
+    #         logger.error(
+    #             f"Banned groups missing. Checks will be skipped."
+    #         )
+    #     else:
+    #         if "releaseGroup" in movie["movieFile"] and \
+    #                 movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, self.banned_groups):
+    #             title = movie.get("title")
+    #             logger.info(
+    #                 f"[Banned: local] group ({movie['movieFile']['releaseGroup']}) for {title}"
+    #             )
+    #             return True
+    #     return False
 
-        # check if banned groups still empty and display warning.
-        if len(self.banned_groups) == 0:
-            logger.error(
-                f"Banned groups missing. Checks will be skipped."
-            )
-        else:
-            if "releaseGroup" in movie["movieFile"] and \
-                    movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, self.banned_groups):
-                title = movie.get("title")
-                logger.info(
-                    f"[Banned: local] group ({movie['movieFile']['releaseGroup']}) for {title}"
-                )
-                return True
-        return False
-
-    async def search_movie(self, session, movie, indent=False):
+    async def search_movie(self, session, movie, indented):
         # update banned groups if tracker supports it
         if len(self.banned_groups) == 0:
             try:
@@ -128,8 +126,10 @@ class AITHER(TrackerBase):
             except Exception as e:
                 logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
         # check if local group is banned on tracker
-        if await self.is_group_banned(movie):
-            return
+        if "releaseGroup" in movie["movieFile"]:
+            release_group = movie["movieFile"]["releaseGroup"]
+            if self.is_group_banned(release_group):
+                return
 
         tmdb_id = movie["tmdbId"]
         quality_info = movie.get("movieFile").get("quality").get("quality")
@@ -145,7 +145,7 @@ class AITHER(TrackerBase):
         media_resolution = str(radarr.get_movie_resolution(movie))
         video_resolutions = self.get_video_resolutions(media_resolution)
         # build the search url
-        log_prefix = f"{"\t" if indent else ""}{self.__class__.__name__} [{media_resolution} {video_type}]... "
+        log_prefix = f"{"\t" if indented else ""}{self.__class__.__name__ if indented else ""} [{media_resolution} {video_type}]... "
         search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
 
         async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
@@ -188,6 +188,26 @@ class AITHER(TrackerBase):
         logger.debug(
             f"[{self.__class__.__name__}] search url: {search_url}"
         )
+
+    async def search_show(self, session, show, season_number):
+        category_id = self.get_cat_id("TV")
+        tvdb_id = show["tvdbId"]
+
+        url = f"{self.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
+        if season_number:
+            url += f"&seasonNumber={season_number}"
+        if len(video_resolutions) > 0:
+            for index, resolution in enumerate(video_resolutions):
+                url += f"&resolutions[{index}]={resolution}"
+        if video_type:
+            url += f"&types[0]={video_type}"
+        # print(f"url: {url}")
+
+        async with session.get(url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+            response.raise_for_status()  # Raise an exception if the request failed
+            res = await response.json()
+            torrents = res["data"]
+            return torrents
 
     # pull banned groups from aither api
     async def fetch_banned_groups(self, session):

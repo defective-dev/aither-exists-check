@@ -16,28 +16,28 @@ async def get_season_episodes(session, show, season_number, app_configs: CONFIG)
         return res
 
 # Function to search for a show in Aither using its TVDB ID
-async def search_show(session, show, season_number, video_resolutions, video_type, tracker):
-    category_id = tracker.get_cat_id("TV")
-    tvdb_id = show["tvdbId"]
-
-    url = f"{tracker.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
-    if season_number:
-        url += f"&seasonNumber={season_number}"
-    if len(video_resolutions) > 0:
-        for index, resolution in enumerate(video_resolutions):
-            url += f"&resolutions[{index}]={resolution}"
-    if video_type:
-        url += f"&types[0]={video_type}"
-    # print(f"url: {url}")
-
-    async with session.get(url, headers={"Authorization": f"Bearer {tracker.api_key}"}) as response:
-        response.raise_for_status()  # Raise an exception if the request failed
-        res = await response.json()
-        torrents = res["data"]
-        return torrents
+# async def search_show(session, show, season_number, video_resolutions, video_type, tracker):
+#     category_id = tracker.get_cat_id("TV")
+#     tvdb_id = show["tvdbId"]
+#
+#     url = f"{tracker.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
+#     if season_number:
+#         url += f"&seasonNumber={season_number}"
+#     if len(video_resolutions) > 0:
+#         for index, resolution in enumerate(video_resolutions):
+#             url += f"&resolutions[{index}]={resolution}"
+#     if video_type:
+#         url += f"&types[0]={video_type}"
+#     # print(f"url: {url}")
+#
+#     async with session.get(url, headers={"Authorization": f"Bearer {tracker.api_key}"}) as response:
+#         response.raise_for_status()  # Raise an exception if the request failed
+#         res = await response.json()
+#         torrents = res["data"]
+#         return torrents
 
 # Function to process each show
-async def process_show(session, show, app_configs: CONFIG, tracker):
+async def process_show(session, show, trackers):
     title = show["title"]
 
     # loop through shows seasons
@@ -84,7 +84,10 @@ async def process_show(session, show, app_configs: CONFIG, tracker):
             media_resolution = str(quality_info.get("resolution"))
             tracker_resolutions = utils.get_video_resolutions(tracker, media_resolution)
             try:
-                torrents = await search_show(session, show, season_number, tracker_resolutions, tracker_type, tracker)
+
+                tasks = [tracker.process_show(session, show, season_number) for tracker in trackers]
+                await asyncio.gather(*tasks)
+                # torrents = await tracker.earch_show(session, show, season_number, tracker_resolutions, tracker_type)
             except Exception as e:
                 if "429" in str(e):
                     logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")

@@ -23,8 +23,6 @@ def get_movie_resolution(movie):
 
 # Function to process each movie
 async def process_movie(session, movie, trackers):
-    title = movie["title"]
-
     # verify radarr actually has a file entry if not skip check and save api call
     if not "movieFile" in movie:
         logger.info(
@@ -32,13 +30,14 @@ async def process_movie(session, movie, trackers):
         )
         return
 
-    # add newline to put list below title.
-    indent = False
+    # add newline to put list below title if multiple checks
+    # and tab indent sub items
+    indented = False
     if len(trackers) > 1:
         logger.info("")
-        indent = True
+        indented = True
 
-    tasks = [tracker.search_movie(session, movie, indent) for tracker in trackers]
+    tasks = [tracker.search_movie(session, movie, indented) for tracker in trackers]
     await asyncio.gather(*tasks)
 
 

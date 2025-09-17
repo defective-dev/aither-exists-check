@@ -92,9 +92,7 @@ async def main():
                     total = len(shows)
                     for index, show in enumerate(shows):
                         logger.info(f"[{index + 1}/{total}] Checking {show["title"]}: ")
-                        # tasks = [sonarr.process_show(session, show, configs, tracker) for tracker in sites]
-                        # await asyncio.gather(*tasks)
-                        sonarr.process_show(session, show, configs, trackers)
+                        await sonarr.process_show(session, show, trackers)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:
                     logger.warning(
