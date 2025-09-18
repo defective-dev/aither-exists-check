@@ -1,4 +1,6 @@
 import logging
+import os
+
 from guessit import guessit
 import radarr
 import utils
@@ -82,7 +84,7 @@ class AITHER(TrackerBase):
 
         return resolutions
 
-    def get_search_url(self, category, video_resolutions, video_type, tmdb_id=None, tvdb_id=None):
+    def get_search_url(self, category, video_resolutions, video_type, tmdb_id=None, tvdb_id=None, season_number=None):
         # build the search url
         category_id = self.get_cat_id(category.upper())
         search_url = f"{self.URL}/api/torrents/filter?categories[0]={category_id}"
@@ -96,26 +98,10 @@ class AITHER(TrackerBase):
                     search_url += f"&resolutions[{index}]={resolution}"
         if video_type:
             search_url += f"&types[0]={video_type}"
+        if season_number:
+            search_url += f"&seasonNumber={season_number}"
 
         return search_url
-
-    # def is_group_banned(self, movie) -> bool:
-    #     # skip check if group is banned.
-    #
-    #     # check if banned groups still empty and display warning.
-    #     if len(self.banned_groups) == 0:
-    #         logger.error(
-    #             f"Banned groups missing. Checks will be skipped."
-    #         )
-    #     else:
-    #         if "releaseGroup" in movie["movieFile"] and \
-    #                 movie["movieFile"]["releaseGroup"].casefold() in map(str.casefold, self.banned_groups):
-    #             title = movie.get("title")
-    #             logger.info(
-    #                 f"[Banned: local] group ({movie['movieFile']['releaseGroup']}) for {title}"
-    #             )
-    #             return True
-    #     return False
 
     async def search_movie(self, session, movie, indented):
         # update banned groups if tracker supports it
@@ -148,66 +134,123 @@ class AITHER(TrackerBase):
         log_prefix = f"{"\t" if indented else ""}{self.__class__.__name__ if indented else ""} [{media_resolution} {video_type}]... "
         search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
 
-        async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
-            response.raise_for_status()  # Raise an exception if the request failed
-            res = await response.json()
-            torrents = res["data"]
+        try:
+            async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+                response.raise_for_status()  # Raise an exception if the request failed
+                res = await response.json()
+                torrents = res["data"]
 
-            if len(torrents) == 0:
-                try:
-                    movie_file = movie["movieFile"]["path"]
-                    if movie_file:
-                        logger.info(
-                            f"{log_prefix}not found"
-                        )
-                        self.radarr_not_found_file.write(f"{movie_file}\n")
-                    else:
+                if len(torrents) == 0:
+                    try:
+                        movie_file = movie["movieFile"]["path"]
+                        if movie_file:
+                            logger.info(
+                                f"{log_prefix}not found"
+                            )
+                            self.radarr_not_found_file.write(f"{movie_file}\n")
+                        else:
+                            logger.info(
+                                f"{log_prefix}not found. (No media file)"
+                            )
+                    except KeyError:
                         logger.info(
                             f"{log_prefix}not found. (No media file)"
                         )
-                except KeyError:
-                    logger.info(
-                        f"{log_prefix}not found. (No media file)"
-                    )
-            else:
-                release_info = guessit(torrents[0].get("attributes").get("name"))
-                if "release_group" in release_info \
-                        and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
-                    title = movie["title"]
-                    logger.info(
-                        f"{log_prefix}[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
-                    )
-                    movie_file = movie["movieFile"]["path"]
-                    if movie_file:
-                        self.radarr_trump_file.writerow([movie_file, 'Banned group'])
                 else:
-                    logger.info(
-                        f"{log_prefix}already exists"
-                    )
+                    release_info = guessit(torrents[0].get("attributes").get("name"))
+                    if "release_group" in release_info \
+                            and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
+                        title = movie["title"]
+                        logger.info(
+                            f"{log_prefix}[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
+                        )
+                        movie_file = movie["movieFile"]["path"]
+                        if movie_file:
+                            self.radarr_trump_file.writerow([movie_file, 'Banned group'])
+                    else:
+                        logger.info(
+                            f"{log_prefix}already exists"
+                        )
+        except Exception as e:
+            if "429" in str(e):
+                logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
+            else:
+                logger.error(f"Error: {str(e)}")
+                self.radarr_not_found_file.write(f"{title} - Error: {str(e)}\n")
 
         logger.debug(
-            f"[{self.__class__.__name__}] search url: {search_url}"
+            f"[{"\t"if indented else ""}{self.__class__.__name__}] search url: {search_url}"
         )
 
-    async def search_show(self, session, show, season_number):
-        category_id = self.get_cat_id("TV")
+    async def search_show(self, session, show, season_number, episode, indented):
+        # update banned groups if tracker supports it
+        if len(self.banned_groups) == 0:
+            try:
+                banned_groups = await self.fetch_banned_groups(session)
+                self.banned_groups = banned_groups
+            except Exception as e:
+                logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
+        # check if local group is banned on tracker
+        if "releaseGroup" in episode["episodeFile"]:
+            release_group = episode["episodeFile"]["releaseGroup"]
+            if self.is_group_banned(release_group):
+                return
+
+        quality_info = episode.get("episodeFile").get("quality").get("quality")
+        source = quality_info.get("source")
+        video_type = quality_info.get("name")  # WEBDL-1080p
+        if video_type.lower() == "dvd" and source.lower() == "dvd":
+            release_info = guessit(episode.get("episodeFile").get("relativePath"))
+            video_type = release_info.get("other")
+
+        video_type = utils.get_video_type(source, video_type)
+        tracker_type = None
+        if video_type != "OTHER":
+            tracker_type = self.get_type_id(video_type.upper())
+        media_resolution = str(quality_info.get("resolution"))
+        video_resolutions = self.get_video_resolutions(media_resolution)
         tvdb_id = show["tvdbId"]
 
-        url = f"{self.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
-        if season_number:
-            url += f"&seasonNumber={season_number}"
-        if len(video_resolutions) > 0:
-            for index, resolution in enumerate(video_resolutions):
-                url += f"&resolutions[{index}]={resolution}"
-        if video_type:
-            url += f"&types[0]={video_type}"
-        # print(f"url: {url}")
+        # search_url = f"{self.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
+        search_url = self.get_search_url("TV", video_resolutions, tracker_type, tvdb_id=tvdb_id, season_number=season_number)
+        log_prefix = f"\t{self.__class__.__name__ if indented else ""} Season {season_number}... "
 
-        async with session.get(url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
-            response.raise_for_status()  # Raise an exception if the request failed
-            res = await response.json()
-            torrents = res["data"]
-            return torrents
+        try:
+            async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+                response.raise_for_status()  # Raise an exception if the request failed
+                res = await response.json()
+                torrents = res["data"]
+
+                if len(torrents) == 0:
+                    logger.info(
+                        f"{log_prefix}not found"
+                    )
+                    filepath = os.path.dirname(episode["episodeFile"]["path"])
+                    self.sonarr_not_found_file.write(f"{filepath}\n")
+                else:
+                    release_info = guessit(torrents[0].get("attributes").get("name"))
+                    if "release_group" in release_info \
+                            and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
+                        logger.info(
+                            f"[Trumpable: Banned] group for [{media_resolution} {video_type}]"
+                        )
+                        filepath = os.path.dirname(episode["episodeFile"]["path"])
+                        if filepath:
+                            self.sonarr_not_found_file.writerow([filepath, 'Banned group'])
+                    else:
+                        logger.info(
+                            f"{log_prefix}already exists"
+                        )
+        except Exception as e:
+            if "429" in str(e):
+                logger.warning(f"Rate limit exceeded while checking. Will retry.")
+            else:
+                logger.error(f"Error: {str(e)}")
+                self.radarr_not_found_file.write(f"Error: {str(e)}\n")
+
+        logger.debug(
+            f"\t[{self.__class__.__name__}] search url: {search_url}"
+        )
 
     # pull banned groups from aither api
     async def fetch_banned_groups(self, session):

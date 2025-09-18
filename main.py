@@ -41,6 +41,7 @@ async def main():
     parser.add_argument("--sonarr", action="store_true", help="Check Sonarr library")
     parser.add_argument("-o", "--output-path", required=False, help="Output file path")
     parser.add_argument("-s", "--sleep-timer", type=int, required=False, default=None, help="Sleep time between calls")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logs")
 
     args = parser.parse_args()
     # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
@@ -56,6 +57,8 @@ async def main():
         configs.SLEEP_TIMER = args.sleep_timer
 
     setup_logging(configs)
+    if args.debug is not None:
+        logger.setLevel(logging.DEBUG)
 
     radarr_needed = args.radarr or (not args.sonarr and not args.radarr)
     sonarr_needed = args.sonarr or (not args.sonarr and not args.radarr)
@@ -92,7 +95,7 @@ async def main():
                     total = len(shows)
                     for index, show in enumerate(shows):
                         logger.info(f"[{index + 1}/{total}] Checking {show["title"]}: ")
-                        await sonarr.process_show(session, show, trackers)
+                        await sonarr.process_show(session, show, trackers, configs)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:
                     logger.warning(

@@ -20,11 +20,12 @@ class TrackerBase:
         else:
             log_path = os.path.join(os.path.expanduser(self.__class__.__name__))
         os.makedirs(log_path, exist_ok=True)
+        csv_headers = ['File', 'Reason']
+
         if app_configs.RADARR.get("enabled"):
             out_category = os.path.join(log_path, CONFIG.LOG_FILES['not_found_radarr'])
             out_trump = os.path.join(log_path, CONFIG.LOG_FILES['trump_radarr'])
             self.radarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)
-            csv_headers = ['File', 'Reason']
             with open(out_trump, 'w', newline='', encoding='utf-8') as csv_file:
                 self.radarr_trump_file = csv.DictWriter(csv_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
                 self.radarr_trump_file.writeheader()

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from guessit import guessit
@@ -37,84 +38,60 @@ async def get_season_episodes(session, show, season_number, app_configs: CONFIG)
 #         return torrents
 
 # Function to process each show
-async def process_show(session, show, trackers):
+async def process_show(session, show, trackers, app_configs: CONFIG):
     title = show["title"]
+
+    if len(show["seasons"]) > 1:
+        logger.info("")  # add newline to put season list below title.
+
+    # add newline to put list below title if multiple checks
+    # and tab indent sub items
+    indented = False
+    if len(trackers) > 1:
+        indented = True
 
     # loop through shows seasons
     for season in show["seasons"]:
         season_number = season["seasonNumber"]
-        # print(f"season: {season_number}")
 
         # skip specials and incomplete seasons for now
         if season_number > 0 and season['statistics']["percentOfEpisodes"] == 100:
-            logger.info(f"[{tracker.__class__.__name__}] Checking {title} Season {season_number}... ")
             # pull episodes for the season
             episodes = await get_season_episodes(session, show, season_number, app_configs)
             # get resolution and type from first ep. assume season pack and all the same
             episode = episodes[0]
 
-            # skip check if group is banned.
-            if len(tracker.banned_groups) == 0:
-                banned_groups = await tracker.get_banned_groups(session)
-            # check if banned groups still empty and display warning.
-            if len(tracker.banned_groups) == 0:
-                logger.error(
-                    f"Banned groups missing. Checks will be skipped."
-                )
-            else:
-                if "releaseGroup" in episode["episodeFile"] and \
-                        episode["episodeFile"]["releaseGroup"].casefold() in map(str.casefold, tracker.banned_groups):
-                    logger.info(
-                        f"[Banned: local] group ({episode['episodeFile']['releaseGroup']}) for {title}"
-                    )
-                    return
+            tasks = [tracker.search_show(session, show, season_number, episode, indented) for tracker in trackers]
+            await asyncio.gather(*tasks)
 
-            quality_info = episode.get("episodeFile").get("quality").get("quality")
-            source = quality_info.get("source")
-            video_type = quality_info.get("name") # WEBDL-1080p
-            if video_type.lower() == "dvd" and source.lower() == "dvd":
-                release_info = guessit(episode.get("episodeFile").get("relativePath"))
-                video_type = release_info.get("other")
-            # print(f"\nsource: {source}, video_type: {video_type}")
-
-            video_type = utils.get_video_type(source, video_type)
-            tracker_type = None
-            if video_type != "OTHER":
-                tracker_type = tracker.get_type_id(video_type.upper())
-            media_resolution = str(quality_info.get("resolution"))
-            tracker_resolutions = utils.get_video_resolutions(tracker, media_resolution)
-            try:
-
-                tasks = [tracker.process_show(session, show, season_number) for tracker in trackers]
-                await asyncio.gather(*tasks)
-                # torrents = await tracker.earch_show(session, show, season_number, tracker_resolutions, tracker_type)
-            except Exception as e:
-                if "429" in str(e):
-                    logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
-                else:
-                    logger.error(f"Error: {str(e)}")
-                    tracker.radarr_not_found_file.write(f"{title} - Error: {str(e)}\n")
-            else:
-                if len(torrents) == 0:
-                    logger.info(
-                        f"[{media_resolution} {video_type}] not found"
-                    )
-                    filepath = os.path.dirname(episode["episodeFile"]["path"])
-                    tracker.radarr_not_found_file.write(f"{filepath}\n")
-                else:
-                    release_info = guessit(torrents[0].get("attributes").get("name"))
-                    if "release_group" in release_info \
-                            and release_info["release_group"].casefold() in map(str.casefold, tracker.banned_groups):
-                        logger.info(
-                            f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type}]"
-                        )
-                        filepath = os.path.dirname(episode["episodeFile"]["path"])
-                        if filepath:
-                            tracker.radarr_trump_file.writerow([filepath, 'Banned group'])
-                    else:
-                        logger.info(
-                            f"[{media_resolution} {video_type}] already exists"
-                        )
+                # torrents = await tracker.search_show(session, show, season_number, tracker_resolutions, tracker_type)
+            # except Exception as e:
+            #     if "429" in str(e):
+            #         logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
+            #     else:
+            #         logger.error(f"Error: {str(e)}")
+            #         tracker.radarr_not_found_file.write(f"{title} - Error: {str(e)}\n")
+            # else:
+            #     if len(torrents) == 0:
+            #         logger.info(
+            #             f"[{media_resolution} {video_type}] not found"
+            #         )
+            #         filepath = os.path.dirname(episode["episodeFile"]["path"])
+            #         tracker.radarr_not_found_file.write(f"{filepath}\n")
+            #     else:
+            #         release_info = guessit(torrents[0].get("attributes").get("name"))
+            #         if "release_group" in release_info \
+            #                 and release_info["release_group"].casefold() in map(str.casefold, tracker.banned_groups):
+            #             logger.info(
+            #                 f"[Trumpable: Banned] group for {title} [{media_resolution} {video_type}]"
+            #             )
+            #             filepath = os.path.dirname(episode["episodeFile"]["path"])
+            #             if filepath:
+            #                 tracker.radarr_trump_file.writerow([filepath, 'Banned group'])
+            #         else:
+            #             logger.info(
+            #                 f"[{media_resolution} {video_type}] already exists"
+            #             )
             time.sleep(app_configs.SLEEP_TIMER)
 
 # Function to get all shows from Sonarr
