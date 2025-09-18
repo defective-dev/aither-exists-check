@@ -1,4 +1,7 @@
 import logging
+import os
+
+import utils
 from config import CONFIG
 from trackers.TrackerBase import TrackerBase
 from guessit import guessit
@@ -76,7 +79,7 @@ class BHD(TrackerBase):
 
         return resolutions
 
-    def get_search_url(self, category, tracker_types, tracker_source, tmdb_id=None, imdb_id=None):
+    def get_search_url(self, category, tracker_types, tracker_source, tmdb_id=None, imdb_id=None, season_number=None):
         # build the search url
         category_id = self.get_cat_id(category)
         url = f"{self.URL}/api/torrents/{self.api_key}?action=search&categories={category_id}"
@@ -92,9 +95,11 @@ class BHD(TrackerBase):
                 for index, item in enumerate(tracker_types):
                     if index > 0:
                         url += ","
-                    url += f"{item}"
+                    url += f"{item.replace(" ", "%20")}"
             else:
-                url += f"&types={tracker_types}"
+                url += f"&types={tracker_types.replace(" ", "%20")}"
+        if season_number:
+            url += f"&search=S{"0" if season_number < 10 else ""}{season_number}"
         return url
 
     async def search_movie(self, session, movie, indented):
@@ -121,6 +126,7 @@ class BHD(TrackerBase):
             if resolution == 0 and "screen_size" in release_info:
                 resolution = release_info.get("screen_size")
                 resolution = int("".join(char for char in resolution if char.isdigit()))  # Removes any character that is NOT a digit
+        modifier = utils.get_video_type(source, modifier)
         if modifier.lower() != "remux" and resolution != 0:
             tracker_types = self.get_video_resolutions(resolution)
         else:
@@ -172,4 +178,84 @@ class BHD(TrackerBase):
             f"[{self.__class__.__name__}] search url: {search_url}"
         )
 
-    # def search_show(self, session, show):
+    async def search_show(self, session, show, season_number, episode, indented):
+        # update banned groups if tracker supports it
+        if len(self.banned_groups) == 0:
+            try:
+                banned_groups = await self.fetch_banned_groups(session)
+                self.banned_groups = banned_groups
+            except Exception as e:
+                logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
+        # check if local group is banned on tracker
+        if "releaseGroup" in episode["episodeFile"]:
+            release_group = episode["episodeFile"]["releaseGroup"]
+            if self.is_group_banned(release_group):
+                return
+
+        quality_info = episode.get("episodeFile").get("quality").get("quality")
+        source = quality_info.get("source")
+        modifier = quality_info.get("modifier")
+        resolution = quality_info.get("resolution")
+        tracker_source = self.get_source_id(source)
+        if tracker_source is None or "DVD" in tracker_source.upper():
+            release_info = guessit(episode.get("episodeFile").get("relativePath"))
+            source = release_info.get("source")
+            if modifier is None:
+                modifier = release_info.get("other")
+            if resolution == 0 and "screen_size" in release_info:
+                resolution = release_info.get("screen_size")
+                resolution = int("".join(char for char in resolution if char.isdigit()))  # Removes any character that is NOT a digit
+        modifier = utils.get_video_type(source, modifier)
+        if modifier.lower() != "remux" and resolution != 0:
+            tracker_types = self.get_video_resolutions(resolution)
+        else:
+            tracker_types = self.get_types(source, modifier)
+            # resolution = tracker_types
+            tracker_source = tracker_types
+
+        # build the search url
+        tmdb_id = show["tmdbId"]
+        imdb_id = show["imdbId"]
+        log_prefix = f"\t"
+        if indented:
+            log_prefix += f"[{self.__class__.__name__ if indented else ""}]"
+        log_prefix += " Season {season_number}... "
+        search_url = self.get_search_url("TV", tracker_types, tracker_source, tmdb_id=tmdb_id, imdb_id=imdb_id,
+                                         season_number=season_number)
+        # no season number in search. have to filter the results
+        try:
+            async with session.post(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+                response.raise_for_status()  # Raise an exception if the request failed
+                res = await response.json()
+                torrents = res["results"]
+
+                if len(torrents) == 0:
+                    logger.info(
+                        f"{log_prefix}not found"
+                    )
+                    filepath = os.path.dirname(episode["episodeFile"]["path"])
+                    self.sonarr_not_found_file.write(f"{filepath}\n")
+                else:
+                    release_info = guessit(torrents[0].get("name"))
+                    if "release_group" in release_info \
+                            and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
+                        logger.info(
+                            f"[Trumpable: Banned] group for [{resolution} {source}]"
+                        )
+                        filepath = os.path.dirname(episode["episodeFile"]["path"])
+                        if filepath:
+                            self.sonarr_not_found_file.writerow([filepath, 'Banned group'])
+                    else:
+                        logger.info(
+                            f"{log_prefix}already exists"
+                        )
+        except Exception as e:
+            if "429" in str(e):
+                logger.warning(f"Rate limit exceeded while checking. Will retry.")
+            else:
+                logger.error(f"Error: {str(e)}")
+                self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
+
+        logger.debug(
+            f"\t[{self.__class__.__name__}] search url: {search_url}"
+        )

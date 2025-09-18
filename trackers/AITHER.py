@@ -213,7 +213,10 @@ class AITHER(TrackerBase):
 
         # search_url = f"{self.URL}/api/torrents/filter?tvdbId={tvdb_id}&categories[0]={category_id}"
         search_url = self.get_search_url("TV", video_resolutions, tracker_type, tvdb_id=tvdb_id, season_number=season_number)
-        log_prefix = f"\t{self.__class__.__name__ if indented else ""} Season {season_number}... "
+        log_prefix = f"\t"
+        if indented:
+            log_prefix += f"[{self.__class__.__name__ if indented else ""}]"
+        log_prefix += " Season {season_number}... "
 
         try:
             async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
@@ -246,7 +249,7 @@ class AITHER(TrackerBase):
                 logger.warning(f"Rate limit exceeded while checking. Will retry.")
             else:
                 logger.error(f"Error: {str(e)}")
-                self.radarr_not_found_file.write(f"Error: {str(e)}\n")
+                self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
 
         logger.debug(
             f"\t[{self.__class__.__name__}] search url: {search_url}"
