@@ -168,11 +168,11 @@ class AITHER(TrackerBase):
                             and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
                         title = movie["title"]
                         logger.info(
-                            f"{log_prefix}[Trumpable: Banned Group] for {title} [{media_resolution} {video_type} {release_info['release_group']}]"
+                            f"{log_prefix} Trumpable: Banned Group: {release_info['release_group']}"
                         )
                         movie_file = movie["movieFile"]["path"]
                         if movie_file:
-                            self.radarr_trump_file.writerow([movie_file, 'Banned group'])
+                            self.radarr_trump_writer.writerow({'file': movie_file, 'reason': 'Banned group'})
                     else:
                         logger.info(
                             f"{log_prefix}already exists"
@@ -243,11 +243,11 @@ class AITHER(TrackerBase):
                     if "release_group" in release_info \
                             and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
                         logger.info(
-                            f"[Trumpable: Banned] group for [{media_resolution} {video_type}]"
+                            f"{log_prefix} Trumpable: Banned Group: {release_info['release_group']}"
                         )
                         filepath = os.path.dirname(episode["episodeFile"]["path"])
                         if filepath:
-                            self.sonarr_trump_file.writerow([filepath, 'Banned group'])
+                            self.sonarr_trump_writer.writerow({'file': filepath, 'reason': 'Banned group'})
                     else:
                         logger.info(
                             f"{log_prefix}already exists"
@@ -281,5 +281,4 @@ class AITHER(TrackerBase):
                 logger.warning(f"Rate limit exceeded while checking.")
             else:
                 logger.error(f"Error: {str(e)}")
-                self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
         return banned_groups

@@ -176,13 +176,12 @@ class BHD(TrackerBase):
                     release_info = guessit(torrents[0].get("name"))
                     if "release_group" in release_info \
                             and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
-                        title = movie["title"]
                         logger.info(
-                            f"{log_prefix}[Trumpable: Banned Group] for {title} [{resolution} {tracker_source} {release_info['release_group']}]"
+                            f"{log_prefix} Trumpable: Banned Group: {release_info['release_group']}"
                         )
                         movie_file = movie["movieFile"]["path"]
                         if movie_file:
-                            self.radarr_trump_file.writerow([movie_file, 'Banned group'])
+                            self.radarr_trump_writer.writerow({'file': movie_file, 'reason': 'Banned group'})
                     else:
                         logger.info(
                             f"{log_prefix}already exists"
@@ -192,7 +191,7 @@ class BHD(TrackerBase):
                 logger.error(f"{log_prefix}Rate limit exceeded while checking.")
             else:
                 logger.error(f"{log_prefix}Error: {str(e)}")
-                self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
+                self.radarr_not_found_file.write(f"Error: {str(e)}\n")
 
         logger.debug(
             f"{"\t"if indented else ""}[{self.__class__.__name__}] search url: {search_url}"
@@ -261,11 +260,11 @@ class BHD(TrackerBase):
                     if "release_group" in release_info \
                             and release_info["release_group"].casefold() in map(str.casefold, self.banned_groups):
                         logger.info(
-                            f"[Trumpable: Banned] group for [{resolution} {source}]"
+                            f"{log_prefix} Trumpable: Banned Group: {release_info['release_group']}"
                         )
                         filepath = os.path.dirname(episode["episodeFile"]["path"])
                         if filepath:
-                            self.sonarr_trump_file.writerow([filepath, 'Banned group'])
+                            self.sonarr_trump_writer.writerow({'file': filepath, 'reason': 'Banned group'})
                     else:
                         logger.info(
                             f"{log_prefix}already exists"
