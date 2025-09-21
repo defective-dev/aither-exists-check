@@ -1,6 +1,7 @@
 import logging
 import os
 
+from aiohttp_retry import RetryClient
 from guessit import guessit
 import radarr
 import utils
@@ -14,6 +15,7 @@ class AITHER(TrackerBase):
         super().__init__()
         self.URL =  "https://aither.cc"
         self.api_key = app_configs.TRACKER_LIST[__class__.__name__].get("api_key")
+        self.app_configs = app_configs
         self.setup_log_files(app_configs)
         pass
 
@@ -111,11 +113,6 @@ class AITHER(TrackerBase):
                 self.banned_groups = banned_groups
             except Exception as e:
                 logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
-        # check if local group is banned on tracker
-        if "releaseGroup" in movie["movieFile"]:
-            release_group = movie["movieFile"]["releaseGroup"]
-            if self.is_group_banned(release_group):
-                return
 
         tmdb_id = movie["tmdbId"]
         quality_info = movie.get("movieFile").get("quality").get("quality")
@@ -131,12 +128,21 @@ class AITHER(TrackerBase):
         media_resolution = str(radarr.get_movie_resolution(movie))
         video_resolutions = self.get_video_resolutions(media_resolution)
         # build the search url
-        log_prefix = f"{"\t" if indented else ""}{self.__class__.__name__ if indented else ""} [{media_resolution} {video_type}]... "
+        log_prefix = ""
+        if indented:
+            log_prefix += f"\t{self.__class__.__name__}: "
+        log_prefix += f"[{media_resolution} {video_type}]... "
         search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
 
+        # check if local group is banned on tracker
+        if "releaseGroup" in movie["movieFile"]:
+            release_group = movie["movieFile"]["releaseGroup"]
+            if self.is_group_banned(release_group, log_prefix):
+                return
+
         try:
+            # async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
             async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
-                response.raise_for_status()  # Raise an exception if the request failed
                 res = await response.json()
                 torrents = res["data"]
 
@@ -173,13 +179,13 @@ class AITHER(TrackerBase):
                         )
         except Exception as e:
             if "429" in str(e):
-                logger.warning(f"Rate limit exceeded while checking {title}. Will retry.")
+                logger.error(f"{log_prefix}Rate limit exceeded.")
             else:
-                logger.error(f"Error: {str(e)}")
+                logger.error(f"{log_prefix}Error: {str(e)}")
                 self.radarr_not_found_file.write(f"{title} - Error: {str(e)}\n")
 
         logger.debug(
-            f"[{"\t"if indented else ""}{self.__class__.__name__}] search url: {search_url}"
+            f"{"\t"if indented else ""}[{self.__class__.__name__}] search url: {search_url}"
         )
 
     async def search_show(self, session, show, season_number, episode, indented):
@@ -190,11 +196,6 @@ class AITHER(TrackerBase):
                 self.banned_groups = banned_groups
             except Exception as e:
                 logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
-        # check if local group is banned on tracker
-        if "releaseGroup" in episode["episodeFile"]:
-            release_group = episode["episodeFile"]["releaseGroup"]
-            if self.is_group_banned(release_group):
-                return
 
         quality_info = episode.get("episodeFile").get("quality").get("quality")
         source = quality_info.get("source")
@@ -215,12 +216,19 @@ class AITHER(TrackerBase):
         search_url = self.get_search_url("TV", video_resolutions, tracker_type, tvdb_id=tvdb_id, season_number=season_number)
         log_prefix = f"\t"
         if indented:
-            log_prefix += f"[{self.__class__.__name__ if indented else ""}]"
+            log_prefix += f"[{self.__class__.__name__}]:"
         log_prefix += " Season {season_number}... "
 
+        # check if local group is banned on tracker
+        if "releaseGroup" in episode["episodeFile"]:
+            release_group = episode["episodeFile"]["releaseGroup"]
+            if self.is_group_banned(release_group, log_prefix):
+                return
+
         try:
-            async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
-                response.raise_for_status()  # Raise an exception if the request failed
+            # async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+            async with session.get(search_url,
+                                        headers={"Authorization": f"Bearer {self.api_key}"}) as response:
                 res = await response.json()
                 torrents = res["data"]
 
@@ -239,16 +247,16 @@ class AITHER(TrackerBase):
                         )
                         filepath = os.path.dirname(episode["episodeFile"]["path"])
                         if filepath:
-                            self.sonarr_not_found_file.writerow([filepath, 'Banned group'])
+                            self.sonarr_trump_file.writerow([filepath, 'Banned group'])
                     else:
                         logger.info(
                             f"{log_prefix}already exists"
                         )
         except Exception as e:
             if "429" in str(e):
-                logger.warning(f"Rate limit exceeded while checking. Will retry.")
+                logger.error(f"{log_prefix}Rate limit exceeded while checking.")
             else:
-                logger.error(f"Error: {str(e)}")
+                logger.error(f"{log_prefix}Error: {str(e)}")
                 self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
 
         logger.debug(
@@ -261,12 +269,17 @@ class AITHER(TrackerBase):
 
         banned_groups = []
         url = f"{self.URL}/api/blacklists/releasegroups?api_token={self.api_key}"
-        async with session.get(url) as response:
-            # if response.status_code == 429:
-            #     logger.warning(f"Rate limit exceeded.")
-            # else:
-            response.raise_for_status()  # Raise an exception if the request failed
-            res = await response.json()
-            groups = res["data"]
-            banned_groups = [d['name'] for d in groups]
+        try:
+            # async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+            async with session.get(url,
+                                        headers={"Authorization": f"Bearer {self.api_key}"}) as response:
+                res = await response.json()
+                groups = res["data"]
+                banned_groups = [d['name'] for d in groups]
+        except Exception as e:
+            if "429" in str(e):
+                logger.warning(f"Rate limit exceeded while checking.")
+            else:
+                logger.error(f"Error: {str(e)}")
+                self.sonarr_not_found_file.write(f"Error: {str(e)}\n")
         return banned_groups

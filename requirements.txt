@@ -1,3 +1,5 @@
 guessit
 asyncio
 aiohttp
+aiohttp_retry
+

@@ -38,20 +38,20 @@ class TrackerBase:
                 self.sonarr_trump_file = csv.DictWriter(csv_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
                 self.sonarr_trump_file.writeheader()
 
-    def is_group_banned(self, release_group) -> bool:
+    def is_group_banned(self, release_group, log_prefix="") -> bool:
         # check if banned groups still empty and display warning.
         if len(self.banned_groups) == 0:
             logger.error(
-                f"Banned groups missing. Checks will be skipped."
+                f"{log_prefix}Error: Banned groups missing. Checks will be skipped."
             )
         elif len(release_group) == 0:
             logger.error(
-                f"Release group missing. Checks will be skipped."
+                f"{log_prefix}Error: Release group missing. Checks will be skipped."
             )
         else:
             if release_group.casefold() in map(str.casefold, self.banned_groups):
                 logger.info(
-                    f"Banned group: {release_group}"
+                    f"{log_prefix}Banned group: {release_group}"
                 )
                 return True
         return False

@@ -4,6 +4,9 @@ import aiohttp
 import time
 import argparse
 import os
+
+from aiohttp_retry import RetryClient
+
 import sonarr
 import radarr
 import utils
@@ -75,12 +78,13 @@ async def main():
         sys.exit("No trackers to search.")
 
     try:
-        async with aiohttp.ClientSession()as session:
+        async with RetryClient(retry_options=configs.http_retry_options) as session:
             if args.radarr or (not args.sonarr and not args.radarr):
                 if configs.RADARR['api_key'] and configs.RADARR['url']:
                     movies = await radarr.get_all_movies(session, configs)
                     total = len(movies)
                     for index, movie in enumerate(movies):
+                        # if index < 545:  continue  #DEBUG: skip entries to problem area
                         logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
                         await radarr.process_movie(session, movie, trackers)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
