@@ -48,6 +48,11 @@ class BHD(TrackerBase):
 
     def get_types(self,source, modifier):
         type_id = None
+
+        # exit if source is empty
+        if not source:
+            return type_id
+
         if source.lower() == "dvd" and modifier.lower() == "remux":
             type_id = "DVD Remux"
         elif source.lower() == "bluray" and modifier.lower() == "remux":
@@ -87,9 +92,9 @@ class BHD(TrackerBase):
             url += f"&tmdb_id={category.lower()}%2F{tmdb_id}"
         if imdb_id:
             url += f"&imdb_id={imdb_id}"
-        if len(tracker_source) > 0 and "Remux" not in tracker_types:
+        if tracker_source and len(tracker_source) > 0 and "Remux" not in tracker_types:
             url += f"&sources={tracker_source}"
-        if len(tracker_types) > 0:
+        if tracker_types and len(tracker_types) > 0:
             if isinstance(tracker_types, list):
                 url += f"&types="
                 for index, item in enumerate(tracker_types):
