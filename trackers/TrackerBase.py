@@ -4,6 +4,7 @@ import os
 from config import CONFIG
 
 logger = logging.getLogger("customLogger")
+
 class TrackerBase:
     def __init__(self):
         self.banned_groups = []

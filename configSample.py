@@ -1,3 +1,6 @@
+from aiohttp_retry import ExponentialRetry
+
+
 class CONFIG:
     # time to sleep between API calls.
     SLEEP_TIMER = 10
@@ -37,5 +40,24 @@ class CONFIG:
         "AITHER": {
             # https://aither.cc/users/YOUR_USERNAME/settings/security
             "api_key": ""
+        },
+        "BHD": {
+            # https://beyond-hd.me/settings/security/apikey
+            "api_key": ""
         }
     }
+
+    # ADVANCED Configs. Probably no need to edit these.
+
+    # Configure ExponentialRetry with desired parameters
+    # attempts: Maximum number of retry attempts
+    # start_timeout: Initial delay before the first retry
+    # factor: Multiplier for increasing the delay between retries
+    # statuses: HTTP status codes that trigger a retry (default includes 5xx)
+    http_retry_options = ExponentialRetry(
+        attempts=3,
+        start_timeout=5.0,  # 0.5 seconds initial delay
+        factor=2.0,  # Double the delay each time
+        max_timeout=40.0,  # Maximum delay between retries
+        statuses={429, 500, 502, 503, 504}  # Retry on common server errors
+    )

@@ -1,8 +1,5 @@
 import logging
 import os
-
-from aiohttp_retry import RetryClient
-
 import utils
 from config import CONFIG
 from trackers.TrackerBase import TrackerBase
