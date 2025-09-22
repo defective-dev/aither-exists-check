@@ -30,6 +30,11 @@ async def process_movie(session, movie, trackers):
         logger.info("")
         indented = True
 
+    # display missing release group warning. So only once and not duplicated per tracker.
+    if "releaseGroup" in movie["movieFile"] and not movie["movieFile"]["releaseGroup"].strip():
+        logger.warning(
+            f"{"\t" if indented else ""}Warning: Release group missing. Banned checks will be skipped."
+        )
     tasks = [tracker.search_movie(session, movie, indented) for tracker in trackers]
     await asyncio.gather(*tasks)
 

@@ -46,6 +46,11 @@ async def process_show(session, show, trackers, app_configs: CONFIG):
                 logger.debug(
                     f"\tSource: {basename(filename)}"
                 )
+                # display missing release group warning. So only once and not duplicated per tracker.
+                if "releaseGroup" in episode["episodeFile"] and not episode["episodeFile"]["releaseGroup"].strip():
+                    logger.warning(
+                        f"\tWarning: Release group missing. Banned checks will be skipped."
+                    )
                 tasks = [tracker.search_show(session, show, season_number, episode, indented) for tracker in trackers]
                 await asyncio.gather(*tasks)
                 time.sleep(app_configs.SLEEP_TIMER)

@@ -45,11 +45,11 @@ class TrackerBase:
         # check if banned groups still empty and display warning.
         if len(self.banned_groups) == 0:
             logger.error(
-                f"{log_prefix}Error: Banned groups missing. Checks will be skipped."
+                f"{log_prefix}ERROR: Banned groups missing. Checks will be skipped."
             )
         elif len(release_group) == 0:
-            logger.error(
-                f"{log_prefix}Error: Release group missing. Checks will be skipped."
+            logger.warning(
+                f"\nERROR: Release group missing. Checks will be skipped."
             )
         else:
             if release_group.casefold() in map(str.casefold, self.banned_groups):

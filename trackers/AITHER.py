@@ -135,7 +135,7 @@ class AITHER(TrackerBase):
         search_url = self.get_search_url("MOVIE", video_resolutions, video_type_id, tmdb_id)
 
         # check if local group is banned on tracker
-        if "releaseGroup" in movie["movieFile"]:
+        if "releaseGroup" in movie["movieFile"] and movie["movieFile"]["releaseGroup"].strip():
             release_group = movie["movieFile"]["releaseGroup"]
             if self.is_group_banned(release_group, log_prefix):
                 return
@@ -195,7 +195,7 @@ class AITHER(TrackerBase):
                 banned_groups = await self.fetch_banned_groups(session)
                 self.banned_groups = banned_groups
             except Exception as e:
-                logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
+                logger.error(f"\n[{self.__class__.__name__}]\nError fetching banned groups failed: {str(e)}")
 
         quality_info = episode.get("episodeFile").get("quality").get("quality")
         source = quality_info.get("source")
@@ -220,7 +220,7 @@ class AITHER(TrackerBase):
         log_prefix += f"Season {"{:02d}".format(season_number)} [{media_resolution} {video_type}]... "
 
         # check if local group is banned on tracker
-        if "releaseGroup" in episode["episodeFile"]:
+        if "releaseGroup" in episode["episodeFile"] and episode["episodeFile"]["releaseGroup"].strip():
             release_group = episode["episodeFile"]["releaseGroup"]
             if self.is_group_banned(release_group, log_prefix):
                 return

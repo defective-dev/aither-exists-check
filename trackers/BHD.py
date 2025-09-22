@@ -149,7 +149,7 @@ class BHD(TrackerBase):
         search_url = self.get_search_url("MOVIE", tracker_types, tracker_source, tmdb_id)
 
         # check if local group is banned on tracker
-        if "releaseGroup" in movie["movieFile"]:
+        if "releaseGroup" in movie["movieFile"] and movie["movieFile"]["releaseGroup"].strip():
             release_group = movie["movieFile"]["releaseGroup"]
             if self.is_group_banned(release_group, log_prefix):
                 return
@@ -246,7 +246,7 @@ class BHD(TrackerBase):
                                          season_number=season_number)
 
         # check if local group is banned on tracker
-        if "releaseGroup" in episode["episodeFile"]:
+        if "releaseGroup" in episode["episodeFile"] and episode["episodeFile"]["releaseGroup"].strip():
             release_group = episode["episodeFile"]["releaseGroup"]
             if self.is_group_banned(release_group, log_prefix):
                 return
