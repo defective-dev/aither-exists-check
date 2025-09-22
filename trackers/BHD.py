@@ -41,7 +41,7 @@ class BHD(TrackerBase):
             "dvd": "DVD",
             "ntsc": "DVD", "ntsc dvd": "DVD",
             "pal": "DVD", "pal dvd": "DVD",
-            "tv": "HDTV"
+            # "tv": "HDTV", "television": "HDTV"
         }
 
         source_id = sources.get(src)
