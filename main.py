@@ -51,6 +51,9 @@ async def main():
     # env_vars = {k.lower().replace('app_', ''): v for k, v in os.environ.items() if k.startswith('APP_')}
     # config = ChainMap(args, env_vars, defaults)
     configs: CONFIG = CONFIG
+
+    #TODO: setup config default values for those that don't update config
+
     if args.output_path:
         configs.LOG_FILES["output_path"] = args.output_path
     configs.RADARR["enabled"] = args.radarr or (not args.sonarr and not args.radarr)
@@ -63,6 +66,7 @@ async def main():
     if args.debug is not None:
         logger.setLevel(logging.DEBUG)
 
+    #TODO: proper validation of configs
     radarr_needed = args.radarr or (not args.sonarr and not args.radarr)
     sonarr_needed = args.sonarr or (not args.sonarr and not args.radarr)
     setup(
@@ -84,10 +88,20 @@ async def main():
                     movies = await radarr.get_all_movies(session, configs)
                     total = len(movies)
                     for index, movie in enumerate(movies):
-                        # if index < 545:  continue  #DEBUG: skip entries to problem area
+                        # if index < 3425:  continue  #DEBUG: skip entries to problem area
+                        if "movieFile" in movie:
+                            logger.debug(
+                                f"Source: {movie.get("movieFile").get("relativePath")}"
+                            )
                         logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
-                        await radarr.process_movie(session, movie, trackers)
-                        time.sleep(configs.SLEEP_TIMER)  # Respectful delay
+
+                        if not "movieFile" in movie:
+                            logger.info(
+                                f"SKIPPED. missing local file"
+                            )
+                        else :
+                            await radarr.process_movie(session, movie, trackers)
+                            time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:
                     logger.warning(
                         "Skipping Radarr check: Radarr API key or URL is missing.\n"

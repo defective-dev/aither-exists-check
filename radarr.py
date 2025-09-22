@@ -23,13 +23,6 @@ def get_movie_resolution(movie):
 
 # Function to process each movie
 async def process_movie(session, movie, trackers):
-    # verify radarr actually has a file entry if not skip check and save api call
-    if not "movieFile" in movie:
-        logger.info(
-            f"Skipped: no local file found"
-        )
-        return
-
     # add newline to put list below title if multiple checks
     # and tab indent sub items
     indented = False

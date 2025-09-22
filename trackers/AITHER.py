@@ -112,7 +112,7 @@ class AITHER(TrackerBase):
                 banned_groups = await self.fetch_banned_groups(session)
                 self.banned_groups = banned_groups
             except Exception as e:
-                logger.error(f"\n[{self.__class__.__name__}] Error fetching banned groups failed: {str(e)}")
+                logger.error(f"\n[{self.__class__.__name__}]Error fetching banned groups failed: {str(e)}")
 
         tmdb_id = movie["tmdbId"]
         quality_info = movie.get("movieFile").get("quality").get("quality")

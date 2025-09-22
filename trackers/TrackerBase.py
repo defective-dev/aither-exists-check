@@ -54,7 +54,7 @@ class TrackerBase:
         else:
             if release_group.casefold() in map(str.casefold, self.banned_groups):
                 logger.info(
-                    f"{log_prefix}Skipped check banned group: {release_group}"
+                    f"{log_prefix}Skipped. local file banned group: {release_group}"
                 )
                 return True
         return False
