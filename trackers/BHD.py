@@ -53,6 +53,12 @@ class BHD(TrackerBase):
         if not source:
             return type_id
 
+        if not isinstance(source, list):
+            source = (source or '').lower()
+        else:
+            # add better check here instead of first item.
+            source = source[0].lower()
+
         if source.lower() == "dvd" and modifier.lower() == "remux":
             type_id = "DVD Remux"
         elif source.lower() == "bluray" and modifier.lower() == "remux":
@@ -152,7 +158,7 @@ class BHD(TrackerBase):
             # async with session.get(search_url, headers={"Authorization": f"Bearer {self.api_key}"}) as response:
             async with session.post(search_url,
                                         headers={"Authorization": f"Bearer {self.api_key}"}) as response:
-                response.raise_for_status()  # Raise an exception if the request failed
+                # response.raise_for_status()  # Raise an exception if the request failed
                 res = await response.json()
                 torrents = res["results"]
 
@@ -229,11 +235,13 @@ class BHD(TrackerBase):
 
         # build the search url
         tmdb_id = show["tmdbId"]
-        imdb_id = show["imdbId"]
+        imdb_id = None
+        if "imdbId" in show:
+            imdb_id = show["imdbId"]
         log_prefix = f"\t"
         if indented:
             log_prefix += f"[{self.__class__.__name__}] "
-        log_prefix += "Season {season_number}... "
+        log_prefix += f"Season {"{:02d}".format(season_number)} [{resolution} {tracker_source}]... "
         search_url = self.get_search_url("TV", tracker_types, tracker_source, tmdb_id=tmdb_id, imdb_id=imdb_id,
                                          season_number=season_number)
 
@@ -244,7 +252,7 @@ class BHD(TrackerBase):
                 return
 
         try:
-            async with session.get(search_url,
+            async with session.post(search_url,
                                         headers={"Authorization": f"Bearer {self.api_key}"}) as response:
                 res = await response.json()
                 torrents = res["results"]

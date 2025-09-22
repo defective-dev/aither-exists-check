@@ -1,5 +1,7 @@
 import sys
 import asyncio
+from os.path import basename
+
 import aiohttp
 import time
 import argparse
@@ -90,8 +92,11 @@ async def main():
                     for index, movie in enumerate(movies):
                         # if index < 3425:  continue  #DEBUG: skip entries to problem area
                         if "movieFile" in movie:
+                            filename = movie.get("movieFile").get("relativePath")
+                            if "sceneName" in movie.get("movieFile"):
+                                filename = movie.get("movieFile").get("sceneName")
                             logger.debug(
-                                f"Source: {movie.get("movieFile").get("relativePath")}"
+                                f"Source: {basename(filename)}"
                             )
                         logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
 
@@ -112,7 +117,8 @@ async def main():
                     shows = await sonarr.get_all_shows(session, configs)
                     total = len(shows)
                     for index, show in enumerate(shows):
-                        logger.info(f"[{index + 1}/{total}] Checking {show["title"]}: ")
+                        # if index < 548:  continue  #DEBUG: skip entries to problem area
+                        logger.info(f"[{index + 1}/{total}] Checking {show["title"]}:")
                         await sonarr.process_show(session, show, trackers, configs)
                         time.sleep(configs.SLEEP_TIMER)  # Respectful delay
                 else:

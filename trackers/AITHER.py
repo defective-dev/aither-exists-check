@@ -216,8 +216,8 @@ class AITHER(TrackerBase):
         search_url = self.get_search_url("TV", video_resolutions, tracker_type, tvdb_id=tvdb_id, season_number=season_number)
         log_prefix = f"\t"
         if indented:
-            log_prefix += f"[{self.__class__.__name__}]:"
-        log_prefix += " Season {season_number}... "
+            log_prefix += f"[{self.__class__.__name__}] "
+        log_prefix += f"Season {"{:02d}".format(season_number)} [{media_resolution} {video_type}]... "
 
         # check if local group is banned on tracker
         if "releaseGroup" in episode["episodeFile"]:

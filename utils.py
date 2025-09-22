@@ -53,6 +53,7 @@ def get_video_type(source, modifier):
     if not isinstance(source, list):
         source = (source or '').lower()
     else:
+        # add better check here instead of first item.
         source = source[0].lower()
     if not isinstance(modifier, list):
         modifier = (modifier or '').lower()
