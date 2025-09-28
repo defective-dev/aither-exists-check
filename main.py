@@ -8,7 +8,6 @@ import argparse
 from aiohttp_retry import RetryClient
 import sonarr
 import radarr
-import utils
 import logging
 
 from AppConfig import AppConfig, ValidationError
@@ -76,7 +75,6 @@ async def main():
     try:
         async with RetryClient(retry_options=configs.http_retry_options) as session:
             if args.radarr or (not args.sonarr and not args.radarr):
-                # if configs.radarr['api_key'] and configs.radarr['url']:
                 movies = await radarr.get_all_movies(session, configs)
                 total = len(movies)
                 for index, movie in enumerate(movies):
@@ -96,25 +94,18 @@ async def main():
                         )
                     else :
                         await radarr.process_movie(session, movie, configs.trackers)
-                        time.sleep(configs.SLEEP_TIMER)  # Respectful delay
-                # else:
-                #     logger.warning(
-                #         "Skipping Radarr check: Radarr API key or URL is missing.\n"
-                #     )
+                        time.sleep(configs.sleep_timer)  # Respectful delay
 
             if args.sonarr or (not args.sonarr and not args.radarr):
-                if configs.sonarr['api_key'] and configs.sonarr['url']:
-                    shows = await sonarr.get_all_shows(session, configs)
-                    total = len(shows)
-                    for index, show in enumerate(shows):
-                        # if index < 874:  continue  #DEBUG: skip entries to problem area
-                        logger.info(f"[{index + 1}/{total}] Checking {show["title"]}:")
-                        await sonarr.process_show(session, show, trackers, configs)
-                        time.sleep(configs.SLEEP_TIMER)  # Respectful delay
-                else:
-                    logger.warning(
-                        "Skipping Sonarr check: Sonarr API key or URL is missing.\n"
-                    )
+                shows = await sonarr.get_all_shows(session, configs)
+                total = len(shows)
+                for index, show in enumerate(shows):
+                    # if index < 874:  continue  #DEBUG: skip entries to problem area
+                    logger.info(f"[{index + 1}/{total}] Checking {show["title"]}:")
+                    await sonarr.process_show(session, show, configs.trackers, configs)
+                    time.sleep(configs.sleep_timer)  # Respectful delay
+    except Exception as e:
+        sys.exit(f"Error: {e}")
     except KeyboardInterrupt:
         logger.info("\nProcess interrupted by user. Exiting.\n")
 
