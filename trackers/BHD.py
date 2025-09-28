@@ -1,7 +1,7 @@
 import logging
 import os
 import utils
-from config import CONFIG
+from AppConfig import AppConfig
 from trackers.TrackerBase import TrackerBase
 from guessit import guessit
 
@@ -9,10 +9,12 @@ from guessit import guessit
 logger = logging.getLogger("customLogger")
 
 class BHD(TrackerBase):
-    def __init__(self, app_configs: CONFIG):
+    def __init__(self, app_configs: AppConfig):
         super().__init__()
         self.URL =  "https://beyond-hd.me"
-        self.api_key = app_configs.TRACKER_LIST[__class__.__name__].get("api_key")
+        trkr = next((sub for sub in app_configs.tracker_configs if sub["name"] == __class__.__name__), None)
+        if trkr:
+            self.api_key = trkr.get("api_key")
         self.app_configs = app_configs
         self.setup_log_files(app_configs)
         self.banned_groups = ['Sicario', 'TOMMY', 'x0r', 'nikt0', 'FGT', 'd3g', 'MeGusta', 'YIFY', 'tigole', 'TEKNO3D', 'C4K', 'RARBG', '4K4U', 'EASports', 'ReaLHD', 'Telly', 'AOC', 'WKS', 'SasukeducK']

@@ -1,20 +1,20 @@
 import logging
 import os
-
-from aiohttp_retry import RetryClient
 from guessit import guessit
 import radarr
 import utils
-from config import CONFIG
+from AppConfig import AppConfig
 from trackers.TrackerBase import TrackerBase
 
 logger = logging.getLogger("customLogger")
 
 class AITHER(TrackerBase):
-    def __init__(self, app_configs: CONFIG):
+    def __init__(self, app_configs: AppConfig):
         super().__init__()
         self.URL =  "https://aither.cc"
-        self.api_key = app_configs.TRACKER_LIST[__class__.__name__].get("api_key")
+        trkr = next((sub for sub in app_configs.tracker_configs if sub["name"] == __class__.__name__), None)
+        if trkr:
+            self.api_key = trkr.get("api_key")
         self.app_configs = app_configs
         self.setup_log_files(app_configs)
         pass

@@ -1,7 +1,6 @@
 import importlib
 import logging
-
-from config import CONFIG
+import AppConfig
 
 logger = logging.getLogger("customLogger")
 
@@ -31,20 +30,23 @@ def create_class_from_string(module_path, class_name_str, *args, **kwargs):
         print(f"Error creating class: {e}")
         return None
 
-def sites_from_config(search_list, app_configs: CONFIG):
+def sites_from_config(search_list, app_configs: AppConfig):
     sites = []
     for tracker in search_list:
         try:
-            class_name = tracker.upper()
+            # skip if not enabled
+            if not tracker.get("enabled", True):
+                continue
+            tracker_name = tracker.get("name", "")
+            class_name = tracker_name.upper()
             my_instance = create_class_from_string(f"trackers.{class_name}", class_name,  app_configs)
             if my_instance:
+                # MyClass exists and is assigned to my_instance
                 sites.append(my_instance)
                 # print(await my_instance.get_cat_id("MOVIE"))
             else:
-                print(f"Invalid tracker name {tracker}")
-                logger.error(f"Invalid tracker name {tracker}")
-
-            # MyClass exists and is assigned to the_class
+                print(f"Invalid tracker name {tracker_name}")
+                logger.error(f"Invalid tracker name {tracker_name}")
         except AttributeError as e:
             print(f"Error: {e}")
     return sites

@@ -38,16 +38,16 @@ As this script becomes more granular, and checking against Aither's resolutions,
 1. Run the docker image. Correct the paths below to map correct config file location and output directory.
     ```bash
     docker run --user 1000:1000 --name aither-exists --rm -it \
-    -v ./config/config.py:/aither-exists-check/config.py \
-    -v ./output:/output/ \
+    -v ./config:/aither-exists-check/config \
+    -v ./logs:/logs/ \
     ghcr.io/defective-dev/aither-exists-check:latest --radarr
     ```
 
 ## Configuration
 
-1. Rename [configSample.py](configSample.py) to `config.py` in the project directory with the following contents - refer to configSample.py:
-
-2. Fill in all `apt_key` values and the Sonarr & tracker `url` values.
+1. cd config (in the project directory)
+2. cp [configSample.toml](config/configSample.toml) to`config/config.toml` - refer to configSample.toml
+3. Fill in all `api_key` & `url` values for Sonarr, Radarr & trackers.
 
 ## Usage
 
@@ -75,12 +75,12 @@ To run the script, use one of the following commands:
 
 The script generates two output files:
 
-- `<tracker_name>/not_found-radarr.txt`: Lists movies in Radarr not found in Aither.
-- `<tracker_name>/not_found-sonarr.txt`: Lists shows in Sonarr not found in Aither.
+- `logs/<tracker_name>/not_found-radarr.txt`: Lists movies in Radarr not found in Aither.
+- `logs/<tracker_name>/not_found-sonarr.txt`: Lists shows in Sonarr not found in Aither.
 
 ## Logging
 
-Detailed logs are stored in `script.log`, while concise output is displayed on the console.
+Detailed logs are stored in `logs/script.log`, while concise output is displayed on the console.
 
 ## Contributors
 

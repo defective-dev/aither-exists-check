@@ -1,8 +1,6 @@
 import asyncio
 import logging
-from xml.etree.ElementTree import indent
-
-from config import CONFIG
+from AppConfig import AppConfig
 
 logger = logging.getLogger("customLogger")
 
@@ -40,9 +38,9 @@ async def process_movie(session, movie, trackers):
 
 
 # Function to get all movies from Radarr
-async def get_all_movies(session, app_configs: CONFIG):
-    radarr_url = app_configs.RADARR['url'] + app_configs.RADARR['api_suffix']
-    async with session.get(radarr_url, headers={"X-Api-Key": app_configs.RADARR['api_key']}) as response:
+async def get_all_movies(session, app_configs: AppConfig):
+    radarr_url = app_configs.radarr['url'] + app_configs.radarr['api_suffix']
+    async with session.get(radarr_url, headers={"X-Api-Key": app_configs.radarr['api_key']}) as response:
         response.raise_for_status()  # Ensure we handle request errors properly
         movies = await response.json()
         return movies

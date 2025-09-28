@@ -1,7 +1,6 @@
 import logging
 import os
-
-from config import CONFIG
+from AppConfig import AppConfig
 
 
 # Just to same line the logs while logging to file also
@@ -34,7 +33,7 @@ class CustomFileHandlerNewLines(logging.FileHandler):
         except Exception:
             self.handleError(record)
 
-def setup_logging(app_configs: CONFIG):
+def setup_logging(app_configs: AppConfig):
     # Setup logging
     logger = logging.getLogger("customLogger")
     logger.setLevel(logging.INFO)
@@ -46,12 +45,12 @@ def setup_logging(app_configs: CONFIG):
     logger.addHandler(console_handler)
 
     # File handler with detailed format
-    output_path = app_configs.LOG_FILES.get("output_path")
+    output_path = app_configs.log_files.get("output_path")
     if output_path:
-        script_log = os.path.join(os.path.expanduser(output_path), app_configs.LOG_FILES["script_log"])
+        script_log = os.path.join(os.path.expanduser(output_path), app_configs.log_files["script_log"])
     else:
-        script_log = os.path.join(os.path.expanduser(app_configs.LOG_FILES["script_log"]))
-    file_handler = CustomFileHandlerNewLines(str(script_log)) #logging.FileHandler(str(script_log))
+        script_log = os.path.join(os.path.expanduser(app_configs.log_files["script_log"]))
+    file_handler = CustomFileHandlerNewLines(str(script_log))
     file_formatter = logging.Formatter("%(message)s")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)

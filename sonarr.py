@@ -1,25 +1,22 @@
 import asyncio
-import os
 import time
 from os.path import basename
 
 from guessit import guessit
 import logging
-
-import utils
-from config import CONFIG
+from AppConfig import AppConfig
 
 logger = logging.getLogger("customLogger")
 
-async def get_season_episodes(session, show, season_number, app_configs: CONFIG):
-    url = app_configs.SONARR['url'] + f"/api/v3/episode?seriesId={show["id"]}&seasonNumber={season_number}&includeSeries=false&includeEpisodeFile=true&includeImages=false"
-    async with session.get(url, headers={"X-Api-Key": app_configs.SONARR['api_key']}) as response:
+async def get_season_episodes(session, show, season_number, app_configs: AppConfig):
+    url = app_configs.sonarr['url'] + f"/api/v3/episode?seriesId={show["id"]}&seasonNumber={season_number}&includeSeries=false&includeEpisodeFile=true&includeImages=false"
+    async with session.get(url, headers={"X-Api-Key": app_configs.sonarr['api_key']}) as response:
         response.raise_for_status()  # Raise an exception if the request failed
         res = await response.json()
         return res
 
 # Function to process each show
-async def process_show(session, show, trackers, app_configs: CONFIG):
+async def process_show(session, show, trackers, app_configs: AppConfig):
     # add newline to put list below title if multiple checks
     # and tab indent sub items
     indented = False
@@ -53,7 +50,7 @@ async def process_show(session, show, trackers, app_configs: CONFIG):
                     )
                 tasks = [tracker.search_show(session, show, season_number, episode, indented) for tracker in trackers]
                 await asyncio.gather(*tasks)
-                time.sleep(app_configs.SLEEP_TIMER)
+                time.sleep(app_configs.sleep_timer)
             else:
                 logger.debug(
                     f"\tSeason {"{:02d}".format(season_number)} SKIPPED. Missing local files."
@@ -69,9 +66,9 @@ async def process_show(session, show, trackers, app_configs: CONFIG):
                 )
 
 # Function to get all shows from Sonarr
-async def get_all_shows(session, app_configs: CONFIG):
-    sonarr_url = app_configs.SONARR['url'] + app_configs.SONARR['api_suffix']
-    async with session.get(sonarr_url, headers={"X-Api-Key": app_configs.SONARR['api_key']})as response:
+async def get_all_shows(session, app_configs: AppConfig):
+    sonarr_url = app_configs.sonarr['url'] + app_configs.sonarr['api_suffix']
+    async with session.get(sonarr_url, headers={"X-Api-Key": app_configs.sonarr['api_key']})as response:
         response.raise_for_status()  # Ensure we handle request errors properly
         shows = await response.json()
         return shows

@@ -1,7 +1,7 @@
 import csv
 import logging
 import os
-from config import CONFIG
+import AppConfig
 
 logger = logging.getLogger("customLogger")
 
@@ -16,8 +16,8 @@ class TrackerBase:
         self.sonarr_trump_writer = None
         pass
 
-    def setup_log_files(self, app_configs: CONFIG):
-        output_path = app_configs.LOG_FILES.get("output_path")
+    def setup_log_files(self, app_configs: AppConfig):
+        output_path = app_configs.log_files.get("output_path")
         if output_path is not None:
             log_path = os.path.join(os.path.expanduser(output_path), self.__class__.__name__)
         else:
@@ -25,17 +25,17 @@ class TrackerBase:
         os.makedirs(log_path, exist_ok=True)
         csv_headers = ['file', 'reason']
 
-        if app_configs.RADARR.get("enabled"):
-            out_category = os.path.join(log_path, CONFIG.LOG_FILES['not_found_radarr'])
-            out_trump = os.path.join(log_path, CONFIG.LOG_FILES['trump_radarr'])
+        if app_configs.radarr.get("enabled"):
+            out_category = os.path.join(log_path, app_configs.log_files['not_found_radarr'])
+            out_trump = os.path.join(log_path, app_configs.log_files['trump_radarr'])
             self.radarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)
             self.radarr_trump_file = open(out_trump, 'w', newline='', encoding='utf-8', buffering=1)
             self.radarr_trump_writer = csv.DictWriter(self.radarr_trump_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             self.radarr_trump_writer.writeheader()
 
-        if app_configs.SONARR.get("enabled"):
-            out_category = os.path.join(log_path, CONFIG.LOG_FILES['not_found_sonarr'])
-            out_trump = os.path.join(log_path, CONFIG.LOG_FILES['trump_sonarr'])
+        if app_configs.radarr.get("enabled"):
+            out_category = os.path.join(log_path, app_configs.log_files['not_found_sonarr'])
+            out_trump = os.path.join(log_path, app_configs.log_files['trump_sonarr'])
             self.sonarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)
             self.sonarr_trump_file = open(out_trump, 'w', newline='', encoding='utf-8', buffering=1)
             self.sonarr_trump_writer = csv.DictWriter(self.sonarr_trump_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
