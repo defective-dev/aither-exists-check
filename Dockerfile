@@ -13,6 +13,8 @@ RUN pip install -r requirements.txt
 
 # Copy the rest of the application's code
 COPY . .
+COPY config/ /config
+RUN mkdir /logs
 
 # Set the entry point for the container
-ENTRYPOINT ["python", "/aither-exists-check/main.py", "-o", "/output"]
+ENTRYPOINT ["python", "/aither-exists-check/main.py", "--config-path", "/config", "--log-path", "/logs"]

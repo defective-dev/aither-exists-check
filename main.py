@@ -38,6 +38,7 @@ async def main():
     # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
     # env_vars = {k.lower().replace('app_', ''): v for k, v in os.environ.items() if k.startswith('APP_')}
     # config = ChainMap(args, env_vars, defaults)
+
     configs: AppConfig = AppConfig()
     config_file = os.path.join(args.config_path, 'config.toml')
     try:
@@ -47,10 +48,13 @@ async def main():
             configs.log_files["output_path"] = args.log_path
 
         configs.radarr["enabled"] = args.radarr or (not args.sonarr and not args.radarr)
-        configs.radarr["enabled"] = args.sonarr or (not args.sonarr and not args.radarr)
+        configs.sonarr["enabled"] = args.sonarr or (not args.sonarr and not args.radarr)
 
         if args.sleep_timer is not None:
             configs.SLEEP_TIMER = args.sleep_timer
+
+        # load tracker objects after merge in args and env values
+        configs.load_trackers()
 
         setup_logging(configs)
         if args.debug is not None:

@@ -38,7 +38,7 @@ As this script becomes more granular, and checking against Aither's resolutions,
 1. Run the docker image. Correct the paths below to map correct config file location and output directory.
     ```bash
     docker run --user 1000:1000 --name aither-exists --rm -it \
-    -v ./config:/aither-exists-check/config \
+    -v ./config:/config \
     -v ./logs:/logs/ \
     ghcr.io/defective-dev/aither-exists-check:latest --radarr
     ```
@@ -74,10 +74,12 @@ To run the script, use one of the following commands:
 ## Output
 
 The script generates two output files:
-
-- `logs/<tracker_name>/not_found-radarr.txt`: Lists movies in Radarr not found in Aither.
-- `logs/<tracker_name>/not_found-sonarr.txt`: Lists shows in Sonarr not found in Aither.
-
+default path: `logs/<tracker_name>/`
+- `radarr-not_found.txt`: Lists movies in Radarr not found on current tracker.
+- `sonarr-not_found.txt`: Lists shows in Sonarr not found on current tracker.
+- `radarr-trump.csv`: Lists movies from Radarr that can trump on current tracker.
+- `sonarr-trump.csv`: Lists shows from Sonarr that can trump on current tracker.
+- 
 ## Logging
 
 Detailed logs are stored in `logs/script.log`, while concise output is displayed on the console.
