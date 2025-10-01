@@ -31,7 +31,7 @@ async def main():
     parser.add_argument("--sonarr", action="store_true", help="Check Sonarr library")
     parser.add_argument("--log-path", required=False, default="logs/", help="Output file path")
     parser.add_argument("-s", "--sleep-timer", type=int, required=False, default=None, help="Sleep time between calls")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logs")
+    parser.add_argument("--debug", action="store_true", default=False, help="Enable debug logs")
     parser.add_argument("--config-path", required=False, default="config/", help="Config file path")
 
     args = parser.parse_args()
@@ -57,7 +57,7 @@ async def main():
         configs.load_trackers()
 
         setup_logging(configs)
-        if args.debug is not None:
+        if args.debug:
             logger.setLevel(logging.DEBUG)
 
         setup(app_configs=configs)  # Ensure API keys and URLs are set
