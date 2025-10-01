@@ -33,7 +33,7 @@ class TrackerBase:
             self.radarr_trump_writer = csv.DictWriter(self.radarr_trump_file, fieldnames=csv_headers, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             self.radarr_trump_writer.writeheader()
 
-        if app_configs.radarr.get("enabled"):
+        if app_configs.sonarr.get("enabled"):
             out_category = os.path.join(log_path, app_configs.log_files['not_found_sonarr'])
             out_trump = os.path.join(log_path, app_configs.log_files['trump_sonarr'])
             self.sonarr_not_found_file = open(out_category, "w", encoding="utf-8", buffering=1)

@@ -5,7 +5,7 @@ RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
 # Set the working directory in the container
-WORKDIR /aither-exists-check
+WORKDIR /app
 
 # Copy the Python requirements file and install Python dependencies
 COPY requirements.txt .
@@ -13,8 +13,6 @@ RUN pip install -r requirements.txt
 
 # Copy the rest of the application's code
 COPY . .
-COPY config/ /config
-RUN mkdir /logs
 
 # Set the entry point for the container
-ENTRYPOINT ["python", "/aither-exists-check/main.py", "--config-path", "/config", "--log-path", "/logs"]
+ENTRYPOINT ["python", "/app/main.py", "--config-path", "/config", "--log-path", "/logs"]
