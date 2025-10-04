@@ -169,34 +169,6 @@ jobs:
             echo "EOF"
           } >> $GITHUB_ENV
 
-      - name: Update version.py
-        run: |
-          TIMESTAMP=$(date +"%Y-%m-%d")
-          VERSION_FILE="data/version.py"
-
-          # Create version.py if it doesn't exist
-          if [ ! -f "$VERSION_FILE" ]; then
-            echo "__version__ = \"0.0.0\"" > "$VERSION_FILE"
-            echo "" >> "$VERSION_FILE"
-          fi
-
-          # Prepend new release info
-          TEMP_FILE=$(mktemp)
-          echo "__version__ = \"${{ env.VERSION }}\"" > "$TEMP_FILE"
-          echo "" >> "$TEMP_FILE"
-          echo "\"\"\"" >> "$TEMP_FILE"
-          echo "Release Notes for version ${{ env.VERSION }} ($TIMESTAMP):" >> "$TEMP_FILE"
-          echo "" >> "$TEMP_FILE"
-          echo "${{ env.CHANGELOG }}" | sed 's/^/# /' >> "$TEMP_FILE"
-          echo "\"\"\"" >> "$TEMP_FILE"
-          echo "" >> "$TEMP_FILE"
-          
-          # Skip the first line of existing version.py (old __version__)
-          if [ -f "$VERSION_FILE" ]; then
-            tail -n +2 "$VERSION_FILE" >> "$TEMP_FILE"
-          fi
-          mv "$TEMP_FILE" "$VERSION_FILE"
-
       - name: Create and push tag
         run: |
           # Create the tag on the commit that includes the version update
