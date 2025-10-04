@@ -35,39 +35,19 @@ As this script becomes more granular, and checking against Aither's resolutions,
    ```
 
 ## Docker
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/brah/aither-exists-check.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd aither-exists-check
-   ```
-3. Build the docker image:
-    ```bash
-   docker build -t aither-exists-check:latest .
-   ```
-4. Run the docker image. Correct the paths below to map correct config file location and output directory.
+1. Run the docker image. Correct the paths below to map correct config file location and output directory.
     ```bash
     docker run --user 1000:1000 --name aither-exists --rm -it \
-    -v ./config/apiKey.py:/aither-exists-check/apiKey.py \
-    -v ./output:/output/ \
-    aither-exists-check:latest --radarr
+    -v ./config:/config \
+    -v ./logs:/logs/ \
+    ghcr.io/defective-dev/aither-exists-check:latest --radarr
     ```
 
 ## Configuration
 
-1. Create a file named `apiKey.py` in the project directory with the following contents - refer to apiKeySample.py:
-
-   ```python
-    aither_key = ""
-    radarr_key = ""
-    sonarr_key = ""
-    radarr_url = ""
-    sonarr_url = ""
-   ```
-
-2. The first time you run the script, you'll be prompted to input your API keys and URLs. The script saves these to `apiKey.py` for future use.
+1. cd config (in the project directory)
+2. cp [configSample.toml](config/configSample.toml) to`config/config.toml` - refer to configSample.toml
+3. Fill in all `api_key` & `url` values for Sonarr, Radarr & trackers.
 
 ## Usage
 
@@ -94,13 +74,15 @@ To run the script, use one of the following commands:
 ## Output
 
 The script generates two output files:
-
-- `not_found_radarr.txt`: Lists movies in Radarr not found in Aither.
-- `not_found_sonarr.txt`: Lists shows in Sonarr not found in Aither.
-
+default path: `logs/<tracker_name>/`
+- `radarr-not_found.txt`: Lists movies in Radarr not found on current tracker.
+- `sonarr-not_found.txt`: Lists shows in Sonarr not found on current tracker.
+- `radarr-trump.csv`: Lists movies from Radarr that can trump on current tracker.
+- `sonarr-trump.csv`: Lists shows from Sonarr that can trump on current tracker.
+- 
 ## Logging
 
-Detailed logs are stored in `script.log`, while concise output is displayed on the console.
+Detailed logs are stored in `logs/script.log`, while concise output is displayed on the console.
 
 ## Contributors
 

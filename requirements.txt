@@ -1,2 +1,4 @@
 guessit
-requests
+asyncio
+aiohttp
+aiohttp_retry

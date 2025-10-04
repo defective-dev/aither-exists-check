@@ -1,0 +1,41 @@
+
+# time to sleep between API calls.
+sleep_timer = 10
+
+[radarr]
+# scan radarr. using command line --radarr or --sonarr will override this value
+enabled = true
+# radarr -> settings -> general
+api_key = ""
+# radarr port typically 7878, local DNS should work if you have it setup, else "localhost" if local machine
+url = "http://localhost:7878"
+api_suffix = "/api/v3/movie"
+
+[sonarr]
+# scan sonarr. using command line --radarr or --sonarr will override this value
+enabled = true
+# sonarr -> settings -> general
+api_key = ""
+# sonarr port typically 8989, local DNS should work if you have it setup, else "localhost" if local machine
+url = "http://localhost:8989"
+api_suffix = "/api/v3/series"
+
+[log_files]
+output_path = "logs/"
+script_log = "script.log"
+not_found_radarr = "radarr-not_found.txt"
+not_found_sonarr = "sonarr-not_found.txt"
+trump_radarr = "radarr-trump.csv"
+trump_sonarr = "sonarr-trump.csv"
+
+[[trackers]]
+enabled = true
+name = "AITHER"
+# https:/Q/aither.cc/users/YOUR_USERNAME/settings/security
+api_key = ""
+
+[[trackers]]
+enabled = true
+name = "BHD"
+# https://beyond-hd.me/settings/security/apikey
+api_key = ""
