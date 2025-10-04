@@ -51,7 +51,7 @@ async def main():
         configs.sonarr["enabled"] = args.sonarr or (not args.sonarr and not args.radarr)
 
         if args.sleep_timer is not None:
-            configs.SLEEP_TIMER = args.sleep_timer
+            configs.sleep_timer = args.sleep_timer
 
         # load tracker objects after merge in args and env values
         configs.load_trackers()
