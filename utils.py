@@ -80,16 +80,18 @@ def get_video_type(source, modifier):
             return 'REMUX'
         elif modifier == 'full':
             return 'FULL DISC'
-        elif modifier == 'Rip':
+        elif modifier == 'rip':
             return 'ENCODE'
         else:
-            return 'ENCODE'
+            return 'OTHER'
     elif source in ['webdl', 'web-dl']:
         return 'WEB-DL'
     elif source in ['webrip', 'web-rip']:
         return 'WEBRIP'
     elif source == 'hdtv':
         return 'HDTV'
+    elif source == 'sdtv':
+        return 'OTHER' # AITHER might have move elsewhere.
     # sonarr types
     elif source == "web" and "webdl" in modifier:
         return 'WEB-DL'
@@ -97,7 +99,9 @@ def get_video_type(source, modifier):
         return 'REMUX'
     elif "hdtv" in modifier:
         return 'HDTV'
+    elif source == "tv" and modifier == "rawhd":
+        return 'HDTV'
     elif "bluray" in modifier and "remux" not in modifier:
         return 'ENCODE'
     else:
-        return 'OTHER'
+        return None

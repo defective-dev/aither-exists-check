@@ -46,14 +46,21 @@ class AppConfig:
             "not_found_radarr": "radarr-not_found.txt",
             "not_found_sonarr": "sonarr-not_found.txt",
             "trump_radarr": "radarr-trump.csv",
-            "trump_sonarr": "sonarr-trump.csv"
+            "trump_sonarr": "sonarr-trump.csv",
+            "metadata_radarr": 'radarr-metadata.csv',
+            "metadata_sonarr": 'sonarr-metadata.csv'
         }
 
         # list of trackers to search
         self.trackers: list[TrackerBase] = []
         self.tracker_configs: list = []
 
+
         # ADVANCED Configs. Probably no need to edit these.
+
+        # this skips the tracker API search calls. Used for debugging to verify parsing of resolution, source and type.
+        self.skip_search: bool = False      # only dump data if flagged with possible issues
+        self.skip_search_all: bool = False  # dump everything. all metadata and parsed info
 
         # Configure ExponentialRetry with desired parameters
         # attempts: Maximum number of retry attempts
@@ -118,7 +125,7 @@ class AppConfig:
         self.log_files["trump_radarr"] = config_data.get("log_files").get("trump_radarr", "radarr-trump.csv")
         self.log_files["trump_sonarr"] = config_data.get("log_files").get("trump_sonarr", "sonarr-trump.csv")
 
-        # store the tracker data from configs but don't laod yet. Wait till after merge in command line args
+        # store the tracker data from configs but don't load yet. Wait till after merge in command line args
         trackers_list = config_data.get("trackers", [])
         self.tracker_configs = trackers_list
 

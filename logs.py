@@ -11,7 +11,12 @@ class NoNewlineStreamHandler(logging.StreamHandler):
             stream = self.stream
             if record.levelno == logging.INFO and (msg.endswith("... ") or msg.endswith(" ")):
                 stream.write(msg)
+            elif record.levelno == logging.DEBUG and not (msg.endswith("... ") or msg.endswith(" ")):
+                stream.write(msg + "\n")
             else:
+                parts = msg.split(": ", 2)
+                if len(parts) == 2:  # If there's only one delimiter, it means the second one doesn't exist
+                    msg = parts[1]
                 stream.write(msg + "\n")
             self.flush()
         except Exception:
@@ -25,7 +30,7 @@ class CustomFileHandlerNewLines(logging.FileHandler):
             if record.levelno == logging.INFO and (msg.endswith("... ") or msg.endswith(" ")):
                 stream.write(msg)
             else:
-                parts = msg.split(" - ", 2)
+                parts = msg.split(": ", 2)
                 if len(parts) == 2:  # If there's only one delimiter, it means the second one doesn't exist
                     msg = parts[1]
                 stream.write(msg + "\n")
@@ -36,11 +41,11 @@ class CustomFileHandlerNewLines(logging.FileHandler):
 def setup_logging(app_configs: AppConfig):
     # Setup logging
     logger = logging.getLogger("customLogger")
-    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.INFO)
 
     # Console handler with a simpler format
     console_handler = NoNewlineStreamHandler()
-    console_formatter = logging.Formatter("%(message)s")
+    console_formatter = logging.Formatter("%(asctime)s: %(message)s")
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
@@ -51,6 +56,6 @@ def setup_logging(app_configs: AppConfig):
     else:
         script_log = os.path.join(os.path.expanduser(app_configs.log_files["script_log"]))
     file_handler = CustomFileHandlerNewLines(str(script_log))
-    file_formatter = logging.Formatter("%(message)s")
+    file_formatter = logging.Formatter("%(asctime)s: %(message)s")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)

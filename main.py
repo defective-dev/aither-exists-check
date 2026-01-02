@@ -1,17 +1,18 @@
+import argparse
+import asyncio
+import logging
 import os
 import sys
-import asyncio
+import time
 import tomllib
 from os.path import basename
-import time
-import argparse
-from aiohttp_retry import RetryClient
-import sonarr
-import radarr
-import logging
 
+from aiohttp_retry import RetryClient
+
+import sonarr
 from AppConfig import AppConfig, ValidationError
 from logs import setup_logging
+from radarr import Radarr
 
 logger = logging.getLogger("customLogger")
 
@@ -29,10 +30,14 @@ async def main():
     )
     parser.add_argument("--radarr", action="store_true", help="Check Radarr library")
     parser.add_argument("--sonarr", action="store_true", help="Check Sonarr library")
+    parser.add_argument("--config-path", required=False, default="config/", help="Config file path")
     parser.add_argument("--log-path", required=False, default="logs/", help="Output file path")
     parser.add_argument("-s", "--sleep-timer", type=int, required=False, default=None, help="Sleep time between calls")
     parser.add_argument("--debug", action="store_true", default=False, help="Enable debug logs")
-    parser.add_argument("--config-path", required=False, default="config/", help="Config file path")
+    parser.add_argument("--skip-search", action="store_true", default=False, help="Debug option to skip tracker search. Testing the parsing and matching of metadata used for checks. Dumps metadata that is flagged with issues.")
+    parser.add_argument("--skip-search-all", action="store_true", default=False,
+                        help="Debug option to skip tracker search. Testing the parsing and matching of metadata used for checks. This dumps all metadata instead of only flagged entries.")
+
 
     args = parser.parse_args()
     # merge in config file with command line parms. should probably switch to ChainMap instead of mess below
@@ -53,13 +58,17 @@ async def main():
         if args.sleep_timer is not None:
             configs.sleep_timer = args.sleep_timer
 
-        # load tracker objects after merge in args and env values
-        configs.load_trackers()
-
-        setup_logging(configs)
+        logger.setLevel(logging.INFO)
         if args.debug:
             logger.setLevel(logging.DEBUG)
+        if args.skip_search or args.skip_search_all:
+            logger.setLevel(logging.DEBUG) # force debug logs
+            configs.skip_search = args.skip_search
+            configs.skip_search_all = args.skip_search_all
 
+        # load tracker objects after merge in args and env values
+        configs.load_trackers()
+        setup_logging(configs)
         setup(app_configs=configs)  # Ensure API keys and URLs are set
     except FileNotFoundError:
         # logger.error(f"Error config file not found: {config_file}")
@@ -73,16 +82,15 @@ async def main():
         # logger.error(f"Validation Error: {e}")
         sys.exit(f"Validation Error: {e}")
 
-    # if not args.radarr and not args.sonarr:
-    #     logger.info("No arguments specified. Running both Radarr and Sonarr checks.\n")
-
     try:
+        radarr: Radarr = Radarr(app_configs=configs)
+
         async with RetryClient(retry_options=configs.http_retry_options) as session:
             if args.radarr or (not args.sonarr and not args.radarr):
-                movies = await radarr.get_all_movies(session, configs)
+                movies = await radarr.get_all_movies(session)
                 total = len(movies)
                 for index, movie in enumerate(movies):
-                    # if index < 3474:  continue  #DEBUG: skip entries to problem area
+                    # if index < 674:  continue  #DEBUG: skip entries to problem area
                     if "movieFile" in movie:
                         filename = movie.get("movieFile").get("relativePath")
                         if "sceneName" in movie.get("movieFile"):
@@ -92,13 +100,17 @@ async def main():
                         )
                     logger.info(f"[{index + 1}/{total}] Checking {movie["title"]}: ")
 
+                    if index > 0 and logger.level == logging.DEBUG:
+                        logger.debug("")
+
                     if not "movieFile" in movie:
                         logger.info(
                             f"SKIPPED. missing local file"
                         )
                     else :
-                        await radarr.process_movie(session, movie, configs.trackers)
-                        time.sleep(configs.sleep_timer)  # Respectful delay
+                        await radarr.process_movie(session, movie)
+                        if not configs.skip_search and not configs.skip_search_all:
+                            time.sleep(configs.sleep_timer)  # Respectful delay
 
             if args.sonarr or (not args.sonarr and not args.radarr):
                 shows = await sonarr.get_all_shows(session, configs)
@@ -107,7 +119,8 @@ async def main():
                     # if index < 874:  continue  #DEBUG: skip entries to problem area
                     logger.info(f"[{index + 1}/{total}] Checking {show["title"]}:")
                     await sonarr.process_show(session, show, configs.trackers, configs)
-                    time.sleep(configs.sleep_timer)  # Respectful delay
+                    if not configs.skip_search and not configs.skip_search_all:
+                        time.sleep(configs.sleep_timer)  # Respectful delay
     except Exception as e:
         sys.exit(f"Error: {e}")
     except KeyboardInterrupt:
